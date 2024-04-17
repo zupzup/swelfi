@@ -3,6 +3,7 @@
 ## TODOs
 
 * [x] Draw UI sketch
+* Use WGPU backend
 * Build UI outline with dummy data
 * Fetch wireless interfaces (https://www.baeldung.com/linux/connect-network-cli)
     * auto-set default
