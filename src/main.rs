@@ -1,16 +1,23 @@
+use anyhow::{anyhow, Result};
 use eframe::egui;
+use regex_lite::Regex;
 use std::process::Command;
 
 #[derive(Debug)]
-struct WirelessInterface {}
+struct WirelessInterface {
+    pub name: String,
+}
 
-fn main() -> Result<(), eframe::Error> {
+fn main() -> Result<()> {
     env_logger::init();
 
     let options = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default().with_inner_size([320.0, 240.0]),
         ..Default::default()
     };
+
+    let interfaces = iw()?;
+    log::info!("interfaces: {:?}", interfaces);
 
     // Our application state:
     let mut name = "Arthur".to_owned();
@@ -72,8 +79,31 @@ fn main() -> Result<(), eframe::Error> {
             });
         });
     })
+    .map_err(|e| anyhow!("eframe error: {}", e))
 }
 
-fn get_wireless_interfaces() -> Vec<WirelessInterface> {
-    vec![]
+fn iw() -> Result<Vec<WirelessInterface>> {
+    let output = Command::new("iw").args(["dev"]).output()?;
+    if output.status.success() {
+        return Ok(parse_iw(output.stdout));
+    }
+    Err(anyhow!("getting wireless interfaces using 'iw' failed"))
+}
+
+// TODO: write test for parsing
+fn parse_iw(output: Vec<u8>) -> Vec<WirelessInterface> {
+    let re = Regex::new(r"Interface (\w+)").unwrap();
+    if let Ok(str) = String::from_utf8(output) {
+        return re
+            .captures_iter(&str)
+            .map(|cap| {
+                let (_, [name]) = cap.extract();
+                WirelessInterface {
+                    name: name.to_owned(),
+                }
+            })
+            .collect::<Vec<WirelessInterface>>();
+    } else {
+        vec![]
+    }
 }
