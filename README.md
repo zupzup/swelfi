@@ -17,5 +17,6 @@
 * implement different schemes (WEP/WPA/WPA2)
 * implement "forget"
 * implement auto-connect on startup (necessary?)
+* Custom style (check Settings from examples)
 * System Tray / Sway status bar (on click, open)
 * Start with `sudo -E x`
