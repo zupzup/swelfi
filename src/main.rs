@@ -16,14 +16,11 @@ fn main() -> Result<()> {
         ..Default::default()
     };
 
-    let interfaces = iw()?;
-    log::info!("interfaces: {:?}", interfaces);
+    let wlan_interfaces = iw()?;
+    let mut selected_wlan_interface = wlan_interfaces[0].name.clone();
 
-    // Our application state:
     let mut name = "Arthur".to_owned();
     let mut age = 42;
-    let wlan_interfaces = ["wlan0", "wlan1", "wlan2"];
-    let mut selected_wlan_interface = wlan_interfaces[0];
 
     eframe::run_simple_native("Swelfie", options, move |ctx, _frame| {
         egui::CentralPanel::default().show(ctx, |ui| {
@@ -33,21 +30,13 @@ fn main() -> Result<()> {
                 egui::ComboBox::from_label("")
                     .selected_text(format!("{:?}", selected_wlan_interface))
                     .show_ui(ui, |ui| {
-                        ui.selectable_value(
-                            &mut selected_wlan_interface,
-                            wlan_interfaces[0],
-                            wlan_interfaces[0],
-                        );
-                        ui.selectable_value(
-                            &mut selected_wlan_interface,
-                            wlan_interfaces[1],
-                            wlan_interfaces[1],
-                        );
-                        ui.selectable_value(
-                            &mut selected_wlan_interface,
-                            wlan_interfaces[2],
-                            wlan_interfaces[2],
-                        );
+                        wlan_interfaces.iter().for_each(|wi| {
+                            ui.selectable_value(
+                                &mut selected_wlan_interface,
+                                wi.name.clone(),
+                                wi.name.clone(),
+                            );
+                        });
                     });
             });
             ui.horizontal(|ui| {
@@ -60,23 +49,6 @@ fn main() -> Result<()> {
                 age += 1;
             }
             ui.label(format!("Hello '{name}', age {age}"));
-            ui.vertical(|ui| {
-                ui.selectable_value(
-                    &mut selected_wlan_interface,
-                    wlan_interfaces[0],
-                    wlan_interfaces[0],
-                );
-                ui.selectable_value(
-                    &mut selected_wlan_interface,
-                    wlan_interfaces[1],
-                    wlan_interfaces[1],
-                );
-                ui.selectable_value(
-                    &mut selected_wlan_interface,
-                    wlan_interfaces[2],
-                    wlan_interfaces[2],
-                );
-            });
         });
     })
     .map_err(|e| anyhow!("eframe error: {}", e))
@@ -90,7 +62,6 @@ fn iw() -> Result<Vec<WirelessInterface>> {
     Err(anyhow!("getting wireless interfaces using 'iw' failed"))
 }
 
-// TODO: write test for parsing
 fn parse_iw(output: &[u8]) -> Vec<WirelessInterface> {
     let re = Regex::new(r"Interface (\w+)").unwrap();
     if let Ok(str) = String::from_utf8(output.to_owned()) {
