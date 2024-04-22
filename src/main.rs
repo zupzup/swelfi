@@ -4,8 +4,19 @@ use regex_lite::Regex;
 use std::process::Command;
 
 #[derive(Debug, Eq, PartialEq)]
+struct WirelessNetwork {
+    pub name: String,
+}
+
+#[derive(Debug, Eq, PartialEq)]
 struct WirelessInterface {
     pub name: String,
+}
+
+#[derive(Debug)]
+enum Switch {
+    On,
+    Off,
 }
 
 fn main() -> Result<()> {
@@ -21,24 +32,35 @@ fn main() -> Result<()> {
 
     let mut name = "Arthur".to_owned();
     let mut age = 42;
+    let mut wlan_on = true;
 
-    eframe::run_simple_native("Swelfie", options, move |ctx, _frame| {
+    eframe::run_simple_native("Swelfi", options, move |ctx, _frame| {
         egui::CentralPanel::default().show(ctx, |ui| {
-            ui.heading("Swelfie");
-            ui.horizontal(|ui| {
-                ui.add(egui::Label::new("Select WLAN Interface"));
-                egui::ComboBox::from_label("")
-                    .selected_text(format!("{:?}", selected_wlan_interface))
-                    .show_ui(ui, |ui| {
-                        wlan_interfaces.iter().for_each(|wi| {
-                            ui.selectable_value(
-                                &mut selected_wlan_interface,
-                                wi.name.clone(),
-                                wi.name.clone(),
-                            );
-                        });
+            ui.heading("Swelfi");
+            egui::Grid::new("")
+                .num_columns(2)
+                .spacing([20.0, 20.0])
+                .show(ui, |ui| {
+                    ui.horizontal(|ui| {
+                        ui.add(egui::Label::new("WLAN Interface"));
+                        egui::ComboBox::from_label("")
+                            .selected_text(&selected_wlan_interface)
+                            .show_ui(ui, |ui| {
+                                wlan_interfaces.iter().for_each(|wi| {
+                                    ui.selectable_value(
+                                        &mut selected_wlan_interface,
+                                        wi.name.clone(),
+                                        wi.name.clone(),
+                                    );
+                                });
+                            });
                     });
-            });
+                    ui.horizontal(|ui| {
+                        ui.add(egui::Label::new("On"));
+                        ui.add(toggle(&mut wlan_on));
+                        ui.add(egui::Label::new("Off"));
+                    });
+                });
             ui.horizontal(|ui| {
                 let name_label = ui.label("Your name: ");
                 ui.text_edit_singleline(&mut name)
@@ -52,6 +74,73 @@ fn main() -> Result<()> {
         });
     })
     .map_err(|e| anyhow!("eframe error: {}", e))
+}
+
+pub fn toggle(on: &mut bool) -> impl egui::Widget + '_ {
+    move |ui: &mut egui::Ui| toggle_ui(ui, on)
+}
+
+// custom toggle from egui examples
+fn toggle_ui(ui: &mut egui::Ui, on: &mut bool) -> egui::Response {
+    let desired_size = ui.spacing().interact_size.y * egui::vec2(2.0, 1.0);
+    let (rect, mut response) = ui.allocate_exact_size(desired_size, egui::Sense::click());
+    if response.clicked() {
+        *on = !*on;
+        response.mark_changed();
+    }
+
+    if ui.is_rect_visible(rect) {
+        let how_on = ui.ctx().animate_bool(response.id, *on);
+        let visuals = ui.style().interact_selectable(&response, *on);
+        let rect = rect.expand(visuals.expansion);
+        let radius = 0.5 * rect.height();
+        ui.painter()
+            .rect(rect, radius, visuals.bg_fill, visuals.bg_stroke);
+        let circle_x = egui::lerp((rect.left() + radius)..=(rect.right() - radius), how_on);
+        let center = egui::pos2(circle_x, rect.center().y);
+        ui.painter()
+            .circle(center, 0.75 * radius, visuals.bg_fill, visuals.fg_stroke);
+    }
+
+    response
+}
+
+fn scan_for_networks(interface: &str) -> Result<Vec<WirelessNetwork>> {
+    let output = Command::new("iwlist").args([interface, "s"]).output()?;
+    if output.status.success() {
+        return Ok(parse_nw(&output.stdout));
+    }
+    Err(anyhow!("getting wireless interfaces using 'iw' failed"))
+}
+
+// TODO: get essid, refactor
+fn parse_nw(output: &[u8]) -> Vec<WirelessNetwork> {
+    let re = Regex::new(r"Cell (\w+)").unwrap();
+    if let Ok(str) = String::from_utf8(output.to_owned()) {
+        return re
+            .captures_iter(&str)
+            .map(|cap| {
+                let (_, [name]) = cap.extract();
+                WirelessNetwork {
+                    name: name.to_owned(),
+                }
+            })
+            .collect::<Vec<WirelessNetwork>>();
+    } else {
+        vec![]
+    }
+}
+
+fn switch_wlan_interface(interface: &str, switch: Switch) -> Result<()> {
+    let on_off = match switch {
+        Switch::On => "up",
+        Switch::Off => "down",
+    };
+
+    Command::new("ip")
+        .args(["link", "set", interface, on_off])
+        .output()?;
+    Ok(())
 }
 
 fn iw() -> Result<Vec<WirelessInterface>> {
