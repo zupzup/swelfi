@@ -3,7 +3,7 @@ use eframe::egui;
 use regex_lite::Regex;
 use std::process::Command;
 
-#[derive(Debug)]
+#[derive(Debug, Eq, PartialEq)]
 struct WirelessInterface {
     pub name: String,
 }
@@ -85,15 +85,15 @@ fn main() -> Result<()> {
 fn iw() -> Result<Vec<WirelessInterface>> {
     let output = Command::new("iw").args(["dev"]).output()?;
     if output.status.success() {
-        return Ok(parse_iw(output.stdout));
+        return Ok(parse_iw(&output.stdout));
     }
     Err(anyhow!("getting wireless interfaces using 'iw' failed"))
 }
 
 // TODO: write test for parsing
-fn parse_iw(output: Vec<u8>) -> Vec<WirelessInterface> {
+fn parse_iw(output: &[u8]) -> Vec<WirelessInterface> {
     let re = Regex::new(r"Interface (\w+)").unwrap();
-    if let Ok(str) = String::from_utf8(output) {
+    if let Ok(str) = String::from_utf8(output.to_owned()) {
         return re
             .captures_iter(&str)
             .map(|cap| {
@@ -105,5 +105,56 @@ fn parse_iw(output: Vec<u8>) -> Vec<WirelessInterface> {
             .collect::<Vec<WirelessInterface>>();
     } else {
         vec![]
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn basic() {
+        let input = "phy#0
+	Unnamed/non-netdev interface
+		wdev 0x2
+		addr 9c:fc:e8:b8:fa:61
+		type P2P-device
+	Interface wlp64s0
+		ifindex 3
+		wdev 0x1
+		addr 9c:fc:e8:b8:fa:60
+		ssid whatever
+		type managed
+		channel 100 (5500 MHz), width: 80 MHz, center1: 5530 MHz
+		txpower 22.00 dBm
+		multicast TXQ:
+			qsz-byt	qsz-pkt	flows	drops	marks	overlmt	hashcol	tx-bytes	tx-packets
+			0	0	0	0	0	0	0	0		0
+            ";
+
+        assert_eq!(
+            parse_iw(input.as_bytes()),
+            vec![WirelessInterface {
+                name: String::from("wlp64s0")
+            }]
+        );
+    }
+
+    #[test]
+    fn no_device() {
+        let input = "phy#0
+	Unnamed/non-netdev interface
+		wdev 0x2
+		addr 9c:fc:e8:b8:fa:61
+		type P2P-device";
+
+        assert_eq!(parse_iw(input.as_bytes()), vec![]);
+    }
+
+    #[test]
+    fn invalid() {
+        let input = "fdsfasdjlhflasjdfhklajshf kasdj";
+
+        assert_eq!(parse_iw(input.as_bytes()), vec![]);
     }
 }
