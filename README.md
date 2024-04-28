@@ -10,6 +10,7 @@
     * [x] make selectable
     * [x] iwconfig parsing
 * [x] implement enable/disable wifi
+* Create watch-workflow
 * fetch wifis
     * show in a list
     * highlight connected wifi
