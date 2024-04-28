@@ -1,5 +1,11 @@
 # swelfi
 
+## Dev
+
+```bash
+cargo watch -c -w src -x run
+```
+
 ## TODOs
 
 * [x] Draw UI sketch
@@ -10,7 +16,7 @@
     * [x] make selectable
     * [x] iwconfig parsing
 * [x] implement enable/disable wifi
-* Create watch-workflow
+* [x] Create watch-workflow
 * fetch wifis
     * show in a list
     * highlight connected wifi

@@ -68,11 +68,6 @@ fn main() -> Result<()> {
                 ui.text_edit_singleline(&mut name)
                     .labelled_by(name_label.id);
             });
-            ui.add(egui::Slider::new(&mut age, 0..=120).text("age"));
-            if ui.button("Increment").clicked() {
-                age += 1;
-            }
-            ui.label(format!("Hello '{name}', age {age}"));
         });
     })
     .map_err(|e| anyhow!("eframe error: {}", e))
