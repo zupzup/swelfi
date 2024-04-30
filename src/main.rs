@@ -25,49 +25,76 @@ fn main() -> Result<()> {
     let options = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default()
             .with_always_on_top()
-            .with_inner_size([320.0, 240.0]),
+            .with_inner_size([640.0, 480.0]),
         ..Default::default()
     };
 
-    let wlan_interfaces = iw()?;
+    // let wlan_interfaces = iw()?;
+    let wlan_interfaces: Vec<WirelessInterface> = vec![WirelessInterface {
+        name: String::from("tstintf"),
+    }];
     let mut selected_wlan_interface = wlan_interfaces[0].name.clone();
 
-    let mut name = "Arthur".to_owned();
-    let mut age = 42;
+    let wlan_networks: Vec<WirelessNetwork> = vec![
+        WirelessNetwork {
+            name: String::from("minkanet"),
+        },
+        WirelessNetwork {
+            name: String::from("SOME DIFFERENT WIFI"),
+        },
+        WirelessNetwork {
+            name: String::from("YAY"),
+        },
+    ];
+    let mut selected_wlan_network = wlan_networks[0].name.clone();
+
     let mut wlan_on = true;
 
     eframe::run_simple_native("Swelfi", options, move |ctx, _frame| {
         egui::CentralPanel::default().show(ctx, |ui| {
             ui.heading("Swelfi");
-            egui::Grid::new("")
+            egui::Grid::new("structure")
                 .num_columns(2)
                 .spacing([20.0, 20.0])
                 .show(ui, |ui| {
-                    ui.horizontal(|ui| {
-                        ui.add(egui::Label::new("WLAN Interface"));
-                        egui::ComboBox::from_label("")
-                            .selected_text(&selected_wlan_interface)
-                            .show_ui(ui, |ui| {
-                                wlan_interfaces.iter().for_each(|wi| {
-                                    ui.selectable_value(
-                                        &mut selected_wlan_interface,
-                                        wi.name.clone(),
-                                        wi.name.clone(),
-                                    );
+                    egui::Grid::new("interfaces and networks")
+                        .num_columns(2)
+                        .spacing([10.0, 10.0])
+                        .min_col_width(80.0)
+                        .show(ui, |ui| {
+                            ui.add(egui::Label::new("WLAN Interface"));
+                            egui::ComboBox::from_id_source("wlan interfaces")
+                                .selected_text(&selected_wlan_interface)
+                                .show_ui(ui, |ui| {
+                                    wlan_interfaces.iter().for_each(|wi| {
+                                        ui.selectable_value(
+                                            &mut selected_wlan_interface,
+                                            wi.name.clone(),
+                                            wi.name.clone(),
+                                        );
+                                    });
                                 });
+                            ui.horizontal(|ui| {
+                                ui.add(egui::Label::new("On"));
+                                ui.add(toggle(&mut wlan_on));
+                                ui.add(egui::Label::new("Off"));
                             });
-                    });
-                    ui.horizontal(|ui| {
-                        ui.add(egui::Label::new("On"));
-                        ui.add(toggle(&mut wlan_on));
-                        ui.add(egui::Label::new("Off"));
-                    });
+                            ui.end_row();
+
+                            ui.add(egui::Label::new("Networks"));
+                            egui::ComboBox::from_id_source("networks")
+                                .selected_text(&selected_wlan_network)
+                                .show_ui(ui, |ui| {
+                                    wlan_networks.iter().for_each(|wn| {
+                                        ui.selectable_value(
+                                            &mut selected_wlan_network,
+                                            wn.name.clone(),
+                                            wn.name.clone(),
+                                        );
+                                    });
+                                });
+                        });
                 });
-            ui.horizontal(|ui| {
-                let name_label = ui.label("Your name: ");
-                ui.text_edit_singleline(&mut name)
-                    .labelled_by(name_label.id);
-            });
         });
     })
     .map_err(|e| anyhow!("eframe error: {}", e))
