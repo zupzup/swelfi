@@ -68,7 +68,7 @@ fn main() -> Result<()> {
                 .show(ui, |ui| {
                     egui::Grid::new("interfaces and networks")
                         .num_columns(2)
-                        .spacing([10.0, 10.0])
+                        .spacing([20.0, 20.0])
                         .min_col_width(80.0)
                         .show(ui, |ui| {
                             ui.add(egui::Label::new("WLAN Interface"));
@@ -90,18 +90,18 @@ fn main() -> Result<()> {
                             });
                             ui.end_row();
 
-                            ui.add(egui::Label::new("Networks"));
-                            egui::ComboBox::from_id_source("networks")
-                                .selected_text(&selected_wlan_network)
-                                .show_ui(ui, |ui| {
-                                    wlan_networks.iter().for_each(|wn| {
-                                        ui.selectable_value(
-                                            &mut selected_wlan_network,
-                                            wn.name.clone(),
-                                            wn.name.clone(),
-                                        );
-                                    });
+                            ui.with_layout(egui::Layout::left_to_right(egui::Align::TOP), |ui| {
+                                ui.add(egui::Label::new("Networks"));
+                            });
+                            ui.vertical(|ui| {
+                                wlan_networks.iter().for_each(|wn| {
+                                    ui.selectable_value(
+                                        &mut selected_wlan_network,
+                                        wn.name.clone(),
+                                        wn.name.clone(),
+                                    );
                                 });
+                            });
                         });
                 });
         });
