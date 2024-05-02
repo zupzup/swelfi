@@ -182,13 +182,6 @@ fn parse_iw(input: &str) -> IResult<&str, Vec<WirelessInterface>> {
 fn interface(input: &str) -> IResult<&str, WirelessInterface> {
     let (input, _) = take_until("Interface ")(input)?;
     let (input, interface) = preceded(tag("Interface "), take_until("\n"))(input)?;
-    // let (input, interface) = preceded(
-    //     multispace0,
-    //     preceded(
-    //         tag("Interface "),
-    //         map(take_until("\n"), |s: &str| s.trim().to_string()),
-    //     ),
-    // )(input)?;
     Ok((
         input,
         WirelessInterface {
