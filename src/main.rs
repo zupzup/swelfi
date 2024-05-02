@@ -1,6 +1,13 @@
 use anyhow::{anyhow, Result};
 use eframe::egui;
-use regex_lite::Regex;
+use nom::{
+    bytes::complete::{tag, take_until},
+    character::complete::multispace0,
+    combinator::map,
+    multi::many0,
+    sequence::preceded,
+    IResult,
+};
 use std::process::Command;
 
 #[derive(Debug, Eq, PartialEq)]
@@ -29,12 +36,13 @@ fn main() -> Result<()> {
         ..Default::default()
     };
 
-    // let wlan_interfaces = iw()?;
-    let wlan_interfaces: Vec<WirelessInterface> = vec![WirelessInterface {
-        name: String::from("tstintf"),
-    }];
+    let wlan_interfaces = iw()?;
+    // let wlan_interfaces: Vec<WirelessInterface> = vec![WirelessInterface {
+    //     name: String::from("tstintf"),
+    // }];
     let mut selected_wlan_interface = wlan_interfaces[0].name.clone();
 
+    let wlan_networks = scan_for_networks(&selected_wlan_interface)?;
     let wlan_networks: Vec<WirelessNetwork> = vec![
         WirelessNetwork {
             name: String::from("minkanet"),
@@ -46,6 +54,7 @@ fn main() -> Result<()> {
             name: String::from("YAY"),
         },
     ];
+    // let mut selected_wlan_network = wlan_networks[0].name.clone();
     let mut selected_wlan_network = wlan_networks[0].name.clone();
 
     let mut wlan_on = true;
@@ -134,25 +143,12 @@ fn scan_for_networks(interface: &str) -> Result<Vec<WirelessNetwork>> {
     if output.status.success() {
         return Ok(parse_nw(&output.stdout));
     }
-    Err(anyhow!("getting wireless interfaces using 'iw' failed"))
+    Err(anyhow!("getting wireless networks using 'iwlist' failed"))
 }
 
 // TODO: get essid, refactor
 fn parse_nw(output: &[u8]) -> Vec<WirelessNetwork> {
-    let re = Regex::new(r"Cell (\w+)").unwrap();
-    if let Ok(str) = String::from_utf8(output.to_owned()) {
-        return re
-            .captures_iter(&str)
-            .map(|cap| {
-                let (_, [name]) = cap.extract();
-                WirelessNetwork {
-                    name: name.to_owned(),
-                }
-            })
-            .collect::<Vec<WirelessNetwork>>();
-    } else {
-        vec![]
-    }
+    vec![]
 }
 
 fn switch_wlan_interface(interface: &str, switch: Switch) -> Result<()> {
@@ -170,31 +166,52 @@ fn switch_wlan_interface(interface: &str, switch: Switch) -> Result<()> {
 fn iw() -> Result<Vec<WirelessInterface>> {
     let output = Command::new("iw").args(["dev"]).output()?;
     if output.status.success() {
-        return Ok(parse_iw(&output.stdout));
+        if let Ok(out_str) = std::str::from_utf8(&output.stdout) {
+            if let Ok((_, wlan_interfaces)) = parse_iw(out_str) {
+                return Ok(wlan_interfaces);
+            }
+        }
     }
     Err(anyhow!("getting wireless interfaces using 'iw' failed"))
 }
 
-fn parse_iw(output: &[u8]) -> Vec<WirelessInterface> {
-    let re = Regex::new(r"Interface (\w+)").unwrap();
-    if let Ok(str) = String::from_utf8(output.to_owned()) {
-        return re
-            .captures_iter(&str)
-            .map(|cap| {
-                let (_, [name]) = cap.extract();
-                WirelessInterface {
-                    name: name.to_owned(),
-                }
-            })
-            .collect::<Vec<WirelessInterface>>();
-    } else {
-        vec![]
-    }
+fn parse_iw(input: &str) -> IResult<&str, Vec<WirelessInterface>> {
+    many0(interface)(input)
+}
+
+fn interface(input: &str) -> IResult<&str, WirelessInterface> {
+    let (input, _) = take_until("Interface ")(input)?;
+    let (input, interface) = preceded(tag("Interface "), take_until("\n"))(input)?;
+    // let (input, interface) = preceded(
+    //     multispace0,
+    //     preceded(
+    //         tag("Interface "),
+    //         map(take_until("\n"), |s: &str| s.trim().to_string()),
+    //     ),
+    // )(input)?;
+    Ok((
+        input,
+        WirelessInterface {
+            name: interface.to_owned(),
+        },
+    ))
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn valid() {
+        let input = " Interface wlp64s0\n";
+
+        assert_eq!(
+            parse_iw(input).unwrap().1,
+            vec![WirelessInterface {
+                name: String::from("wlp64s0")
+            }]
+        );
+    }
 
     #[test]
     fn basic() {
@@ -217,7 +234,7 @@ mod tests {
             ";
 
         assert_eq!(
-            parse_iw(input.as_bytes()),
+            parse_iw(input).unwrap().1,
             vec![WirelessInterface {
                 name: String::from("wlp64s0")
             }]
@@ -232,13 +249,13 @@ mod tests {
 		addr 9c:fc:e8:b8:fa:61
 		type P2P-device";
 
-        assert_eq!(parse_iw(input.as_bytes()), vec![]);
+        assert_eq!(parse_iw(input).unwrap().1, vec![]);
     }
 
     #[test]
     fn invalid() {
         let input = "fdsfasdjlhflasjdfhklajshf kasdj";
 
-        assert_eq!(parse_iw(input.as_bytes()), vec![]);
+        assert_eq!(parse_iw(input).unwrap().1, vec![]);
     }
 }
