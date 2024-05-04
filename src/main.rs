@@ -141,14 +141,27 @@ fn toggle_ui(ui: &mut egui::Ui, on: &mut bool) -> egui::Response {
 fn scan_for_networks(interface: &str) -> Result<Vec<WirelessNetwork>> {
     let output = Command::new("iwlist").args([interface, "s"]).output()?;
     if output.status.success() {
-        return Ok(parse_nw(&output.stdout));
+        if let Ok(out_str) = std::str::from_utf8(&output.stdout) {
+            if let Ok((_, wlan_networks)) = parse_nw(out_str) {
+                return Ok(wlan_networks);
+            }
+        }
     }
     Err(anyhow!("getting wireless networks using 'iwlist' failed"))
 }
 
 // TODO: get essid, refactor
-fn parse_nw(output: &[u8]) -> Vec<WirelessNetwork> {
-    vec![]
+fn parse_nw(input: &str) -> IResult<&str, Vec<WirelessNetwork>> {
+    many0(cell)(input)
+}
+
+fn cell(input: &str) -> IResult<&str, WirelessNetwork> {
+    Ok((
+        "",
+        WirelessNetwork {
+            name: String::default(),
+        },
+    ))
 }
 
 fn switch_wlan_interface(interface: &str, switch: Switch) -> Result<()> {
