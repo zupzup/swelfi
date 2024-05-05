@@ -5,6 +5,7 @@ use nom::{
     character::complete::multispace0,
     combinator::map,
     multi::many0,
+    number::{f32, i32, u32},
     sequence::preceded,
     IResult,
 };
@@ -12,11 +13,11 @@ use std::process::Command;
 
 #[derive(Debug, Eq, PartialEq)]
 struct WirelessNetwork {
+    pub address: String,
+    pub quality: String,
+    pub frequency: String,
     pub essid: String,
     pub security_type: String,
-    pub frequency: String,
-    pub quality: String,
-    pub address: String,
 }
 
 #[derive(Debug, Eq, PartialEq)]
@@ -156,28 +157,22 @@ fn parse_nw(input: &str) -> IResult<&str, Vec<WirelessNetwork>> {
 }
 
 fn cell(input: &str) -> IResult<&str, WirelessNetwork> {
+    let (input, _) = take_until("Cell ")(input)?;
+    let (input, cell_num) = i32(input)?;
+    // TODO: tuple (Cell )(num)( - )(Address: )(xx:xx:xx:xx:xx:xx)(\n)
+    // TODO: tuple (Frequency:)(f32)(ghz)(\n)
+    // TODO: tuple (Quality=)(u32)(/)(u32)(Signal level=)(i32)(dBm)
+    // TODO: tuple (ESSID:)(")(alphanumeric1)(")
     Ok((
         "",
         WirelessNetwork {
             essid: String::from("some network"),
+            address: String::from("AE:E2:D3:CC:59:F7"),
             security_type: String::from("IEEE 802.11i/WPA2 Version 1"),
             frequency: String::from("5.18 GHz (Channel 36)"),
             quality: String::from("25/70  Signal level=-85 dBm"),
-            address: String::from("AE:E2:D3:CC:59:F7"),
         },
     ))
-}
-
-fn switch_wlan_interface(interface: &str, switch: Switch) -> Result<()> {
-    let on_off = match switch {
-        Switch::On => "up",
-        Switch::Off => "down",
-    };
-
-    Command::new("ip")
-        .args(["link", "set", interface, on_off])
-        .output()?;
-    Ok(())
 }
 
 fn iw() -> Result<Vec<WirelessInterface>> {
@@ -197,6 +192,7 @@ fn parse_iw(input: &str) -> IResult<&str, Vec<WirelessInterface>> {
 }
 
 fn interface(input: &str) -> IResult<&str, WirelessInterface> {
+    // TODO: doable with tuple?
     let (input, _) = take_until("Interface ")(input)?;
     let (input, interface) = preceded(tag("Interface "), take_until("\n"))(input)?;
     Ok((
@@ -205,6 +201,18 @@ fn interface(input: &str) -> IResult<&str, WirelessInterface> {
             name: interface.to_owned(),
         },
     ))
+}
+
+fn switch_wlan_interface(interface: &str, switch: Switch) -> Result<()> {
+    let on_off = match switch {
+        Switch::On => "up",
+        Switch::Off => "down",
+    };
+
+    Command::new("ip")
+        .args(["link", "set", interface, on_off])
+        .output()?;
+    Ok(())
 }
 
 #[cfg(test)]
