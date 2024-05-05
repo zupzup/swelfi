@@ -12,7 +12,11 @@ use std::process::Command;
 
 #[derive(Debug, Eq, PartialEq)]
 struct WirelessNetwork {
-    pub name: String,
+    pub essid: String,
+    pub security_type: String,
+    pub frequency: String,
+    pub quality: String,
+    pub address: String,
 }
 
 #[derive(Debug, Eq, PartialEq)]
@@ -39,23 +43,19 @@ fn main() -> Result<()> {
     let wlan_interfaces = iw()?;
     // let wlan_interfaces: Vec<WirelessInterface> = vec![WirelessInterface {
     //     name: String::from("tstintf"),
-    // }];
+    // }]
     let mut selected_wlan_interface = wlan_interfaces[0].name.clone();
 
     let wlan_networks = scan_for_networks(&selected_wlan_interface)?;
-    let wlan_networks: Vec<WirelessNetwork> = vec![
-        WirelessNetwork {
-            name: String::from("minkanet"),
-        },
-        WirelessNetwork {
-            name: String::from("SOME DIFFERENT WIFI"),
-        },
-        WirelessNetwork {
-            name: String::from("YAY"),
-        },
-    ];
+    let wlan_networks: Vec<WirelessNetwork> = vec![WirelessNetwork {
+        essid: String::from("some network"),
+        security_type: String::from("IEEE 802.11i/WPA2 Version 1"),
+        frequency: String::from("5.18 GHz (Channel 36)"),
+        quality: String::from("25/70  Signal level=-85 dBm"),
+        address: String::from("AE:E2:D3:CC:59:F7"),
+    }];
     // let mut selected_wlan_network = wlan_networks[0].name.clone();
-    let mut selected_wlan_network = wlan_networks[0].name.clone();
+    let mut selected_wlan_network = wlan_networks[0].essid.clone();
 
     let mut wlan_on = true;
 
@@ -97,8 +97,8 @@ fn main() -> Result<()> {
                                 wlan_networks.iter().for_each(|wn| {
                                     ui.selectable_value(
                                         &mut selected_wlan_network,
-                                        wn.name.clone(),
-                                        wn.name.clone(),
+                                        wn.essid.clone(),
+                                        wn.essid.clone(),
                                     );
                                 });
                             });
@@ -159,7 +159,11 @@ fn cell(input: &str) -> IResult<&str, WirelessNetwork> {
     Ok((
         "",
         WirelessNetwork {
-            name: String::default(),
+            essid: String::from("some network"),
+            security_type: String::from("IEEE 802.11i/WPA2 Version 1"),
+            frequency: String::from("5.18 GHz (Channel 36)"),
+            quality: String::from("25/70  Signal level=-85 dBm"),
+            address: String::from("AE:E2:D3:CC:59:F7"),
         },
     ))
 }
@@ -302,7 +306,11 @@ mod tests {
         assert_eq!(
             parse_nw(input).unwrap().1,
             vec![WirelessNetwork {
-                name: String::from("some network")
+                essid: String::from("some network"),
+                security_type: String::from("IEEE 802.11i/WPA2 Version 1"),
+                frequency: String::from("5.18 GHz (Channel 36)"),
+                quality: String::from("25/70  Signal level=-85 dBm"),
+                address: String::from("AE:E2:D3:CC:59:F7"),
             }]
         );
     }
