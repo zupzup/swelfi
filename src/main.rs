@@ -208,7 +208,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn valid() {
+    fn valid_interface() {
         let input = " Interface wlp64s0\n";
 
         assert_eq!(
@@ -220,7 +220,7 @@ mod tests {
     }
 
     #[test]
-    fn basic() {
+    fn basic_interface() {
         let input = "phy#0
 	Unnamed/non-netdev interface
 		wdev 0x2
@@ -248,7 +248,7 @@ mod tests {
     }
 
     #[test]
-    fn no_device() {
+    fn no_device_interface() {
         let input = "phy#0
 	Unnamed/non-netdev interface
 		wdev 0x2
@@ -259,9 +259,51 @@ mod tests {
     }
 
     #[test]
-    fn invalid() {
+    fn invalid_interface() {
         let input = "fdsfasdjlhflasjdfhklajshf kasdj";
 
         assert_eq!(parse_iw(input).unwrap().1, vec![]);
+    }
+
+    #[test]
+    fn valid_network() {
+        let input = "Cell 09 - Address: D4:1A:D1:51:67:F2
+                    Channel:6
+                    Frequency:2.437 GHz (Channel 6)
+                    Quality=42/70  Signal level=-68 dBm
+                    Encryption key:on
+                    ESSID:\"some network\"
+                    Bit Rates:1 Mb/s; 2 Mb/s; 5.5 Mb/s; 11 Mb/s; 18 Mb/s
+                              24 Mb/s; 36 Mb/s; 54 Mb/s
+                    Bit Rates:6 Mb/s; 9 Mb/s; 12 Mb/s; 48 Mb/s
+                    Mode:Master
+                    Extra:tsf=00000052cabe36b9
+                    Extra: Last beacon: 2216ms ago
+                    IE: Unknown: 00086D696E6B616E6574
+                    IE: Unknown: 010882848B962430486C
+                    IE: Unknown: 030106
+                    IE: Unknown: 0706415420010D14
+                    IE: Unknown: 200100
+                    IE: Unknown: 23021000
+                    IE: Unknown: 2A0104
+                    IE: Unknown: 32040C121860
+                    IE: IEEE 802.11i/WPA2 Version 1
+                        Group Cipher : CCMP
+                        Pairwise Ciphers (1) : CCMP
+                        Authentication Suites (1) : PSK
+                    IE: Unknown: 0B050000130000
+                    IE: Unknown: 2D1ABC091BFFFF000000000000000000000000000000000000000000
+                    IE: Unknown: 3D1606080000000000000000000000000000000000000000
+                    IE: Unknown: 7F080400080000000040
+                    IE: Unknown: DD880050F204104A0001101044000102103B00010310470010F1C8F0ECA8220A216584CCEC11054672102100055A5958454C102300094458333130312D4230102400094458333130312D423010420004313233341054000800060050F2040001101100114458333130312D4230205A7958454C4150100800022008103C0001031049000600372A000120
+                    IE: Unknown: DD090010180200000C0000
+                    IE: Unknown: DD180050F2020101840003A4000027A4000042435E0062322F00";
+
+        assert_eq!(
+            parse_nw(input).unwrap().1,
+            vec![WirelessNetwork {
+                name: String::from("some network")
+            }]
+        );
     }
 }
