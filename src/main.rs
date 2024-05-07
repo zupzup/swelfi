@@ -12,6 +12,8 @@ use nom::{
 use std::process::Command;
 
 const INTERFACE: &str = "Interface ";
+const CELL: &str = "Cell ";
+const FREQUENCY: &str = "Frequency:";
 
 #[derive(Debug, Eq, PartialEq)]
 struct WirelessNetwork {
@@ -142,15 +144,22 @@ fn toggle_ui(ui: &mut egui::Ui, on: &mut bool) -> egui::Response {
 }
 
 fn scan_for_networks(interface: &str) -> Result<Vec<WirelessNetwork>> {
-    let output = Command::new("iwlist").args([interface, "s"]).output()?;
-    if output.status.success() {
-        if let Ok(out_str) = std::str::from_utf8(&output.stdout) {
-            if let Ok((_, wlan_networks)) = parse_nw(out_str) {
-                return Ok(wlan_networks);
-            }
-        }
+    let output = Command::new("sudo")
+        .args(["iwlist", interface, "s"])
+        .output()?;
+    // let output = Command::new("iwlist").args([interface, "s"]).output()?;
+    if !output.status.success() {
+        return Err(anyhow!("getting wireless interfaces using 'iwlist' failed"));
     }
-    Err(anyhow!("getting wireless networks using 'iwlist' failed"))
+
+    std::str::from_utf8(&output.stdout)
+        .map(|out_str| {
+            log::info!("inp: {}", out_str);
+            parse_nw(out_str)
+                .map(|(_, wlan_networks)| wlan_networks)
+                .map_err(|e| anyhow!("parsing 'iwlist' output failed: {}", e))
+        })
+        .map_err(|_| anyhow!("output of 'iwlist' wasn't valid utf-8"))?
 }
 
 // TODO: get essid, refactor
@@ -158,15 +167,30 @@ fn parse_nw(input: &str) -> IResult<&str, Vec<WirelessNetwork>> {
     many0(cell)(input)
 }
 
+// TODO: does error handling work here?
 fn cell(input: &str) -> IResult<&str, WirelessNetwork> {
-    let (input, _) = take_until("Cell ")(input)?;
-    let (input, cell_num) = digit1(input)?;
-    // TODO: tuple (Cell )(num)( - )(Address: )(xx:xx:xx:xx:xx:xx)(\n)
-    // TODO: tuple (Frequency:)(f32)(ghz)(\n)
+    let (input, (_, _, cell_num, _, address)) = tuple((
+        take_until::<_, _, nom::error::Error<_>>(CELL),
+        tag(CELL),
+        digit1,
+        tag(" - Address: "),
+        take_until("\n"),
+    ))(input)?;
+    let (input, (_, _, frequency)) = tuple((
+        take_until::<_, _, nom::error::Error<_>>(FREQUENCY),
+        tag(FREQUENCY),
+        double,
+    ))(input)?;
+    log::info!(
+        "########## cell: {}, address: {}, frequency: {} ##########",
+        cell_num,
+        address,
+        frequency
+    );
     // TODO: tuple (Quality=)(u32)(/)(u32)(Signal level=)(i32)(dBm)
     // TODO: tuple (ESSID:)(")(alphanumeric1)(")
     Ok((
-        "",
+        input,
         WirelessNetwork {
             essid: String::from("some network"),
             address: String::from("AE:E2:D3:CC:59:F7"),
@@ -179,14 +203,17 @@ fn cell(input: &str) -> IResult<&str, WirelessNetwork> {
 
 fn iw() -> Result<Vec<WirelessInterface>> {
     let output = Command::new("iw").args(["dev"]).output()?;
-    if output.status.success() {
-        if let Ok(out_str) = std::str::from_utf8(&output.stdout) {
-            if let Ok((_, wlan_interfaces)) = parse_iw(out_str) {
-                return Ok(wlan_interfaces);
-            }
-        }
+    if !output.status.success() {
+        return Err(anyhow!("getting wireless interfaces using 'iw' failed"));
     }
-    Err(anyhow!("getting wireless interfaces using 'iw' failed"))
+
+    std::str::from_utf8(&output.stdout)
+        .map(|out_str| {
+            parse_iw(out_str)
+                .map(|(_, wlan_interfaces)| wlan_interfaces)
+                .map_err(|e| anyhow!("parsing 'iw' output failed: {}", e))
+        })
+        .map_err(|_| anyhow!("output of 'iw' wasn't valid utf-8"))?
 }
 
 fn parse_iw(input: &str) -> IResult<&str, Vec<WirelessInterface>> {
@@ -196,7 +223,6 @@ fn parse_iw(input: &str) -> IResult<&str, Vec<WirelessInterface>> {
 fn interface(input: &str) -> IResult<&str, WirelessInterface> {
     let (input, (_, _, interface)) =
         tuple((take_until(INTERFACE), tag(INTERFACE), take_until("\n")))(input)?;
-    log::info!("interface: {}", interface);
     Ok((
         input,
         WirelessInterface {
@@ -258,6 +284,50 @@ mod tests {
             vec![WirelessInterface {
                 name: String::from("wlp64s0")
             }]
+        );
+    }
+
+    #[test]
+    fn two_interfaces() {
+        let input = "phy#0
+	Unnamed/non-netdev interface
+		wdev 0x2
+		addr 9c:fc:e8:b8:fa:61
+		type P2P-device
+	Interface wlp64s0
+		ifindex 3
+		wdev 0x1
+		addr 9c:fc:e8:b8:fa:60
+		ssid whatever
+		type managed
+		channel 100 (5500 MHz), width: 80 MHz, center1: 5530 MHz
+		txpower 22.00 dBm
+		multicast TXQ:
+			qsz-byt	qsz-pkt	flows	drops	marks	overlmt	hashcol	tx-bytes	tx-packets
+			0	0	0	0	0	0	0	0		0
+	Interface second
+		ifindex 3
+		wdev 0x1
+		addr 9c:fc:e8:b8:fa:60
+		ssid whatever
+		type managed
+		channel 100 (5500 MHz), width: 80 MHz, center1: 5530 MHz
+		txpower 22.00 dBm
+		multicast TXQ:
+			qsz-byt	qsz-pkt	flows	drops	marks	overlmt	hashcol	tx-bytes	tx-packets
+			0	0	0	0	0	0	0	0		0
+            ";
+
+        assert_eq!(
+            parse_iw(input).unwrap().1,
+            vec![
+                WirelessInterface {
+                    name: String::from("wlp64s0")
+                },
+                WirelessInterface {
+                    name: String::from("second")
+                }
+            ]
         );
     }
 
