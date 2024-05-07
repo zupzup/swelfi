@@ -2,14 +2,16 @@ use anyhow::{anyhow, Result};
 use eframe::egui;
 use nom::{
     bytes::complete::{tag, take_until},
-    character::complete::multispace0,
+    character::complete::{digit1, multispace0},
     combinator::map,
     multi::many0,
-    number::{f32, i32, u32},
-    sequence::preceded,
+    number::complete::double,
+    sequence::{preceded, tuple},
     IResult,
 };
 use std::process::Command;
+
+const INTERFACE: &str = "Interface ";
 
 #[derive(Debug, Eq, PartialEq)]
 struct WirelessNetwork {
@@ -158,7 +160,7 @@ fn parse_nw(input: &str) -> IResult<&str, Vec<WirelessNetwork>> {
 
 fn cell(input: &str) -> IResult<&str, WirelessNetwork> {
     let (input, _) = take_until("Cell ")(input)?;
-    let (input, cell_num) = i32(input)?;
+    let (input, cell_num) = digit1(input)?;
     // TODO: tuple (Cell )(num)( - )(Address: )(xx:xx:xx:xx:xx:xx)(\n)
     // TODO: tuple (Frequency:)(f32)(ghz)(\n)
     // TODO: tuple (Quality=)(u32)(/)(u32)(Signal level=)(i32)(dBm)
@@ -192,9 +194,9 @@ fn parse_iw(input: &str) -> IResult<&str, Vec<WirelessInterface>> {
 }
 
 fn interface(input: &str) -> IResult<&str, WirelessInterface> {
-    // TODO: doable with tuple?
-    let (input, _) = take_until("Interface ")(input)?;
-    let (input, interface) = preceded(tag("Interface "), take_until("\n"))(input)?;
+    let (input, (_, _, interface)) =
+        tuple((take_until(INTERFACE), tag(INTERFACE), take_until("\n")))(input)?;
+    log::info!("interface: {}", interface);
     Ok((
         input,
         WirelessInterface {
