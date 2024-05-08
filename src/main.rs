@@ -165,6 +165,7 @@ fn scan_for_networks(interface: &str) -> Result<Vec<WirelessNetwork>> {
 // TODO: get essid, refactor
 fn parse_nw(input: &str) -> IResult<&str, Vec<WirelessNetwork>> {
     many0(cell)(input) // TODO: maybe avoid many0 because of allocations? https://www.youtube.com/watch?v=7VNsmlCAmHU
+                       // check https://stackoverflow.com/questions/74993188/how-to-propagate-nom-fail-context-out-of-many0
 }
 
 // TODO: does error handling work here?
