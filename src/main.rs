@@ -164,7 +164,7 @@ fn scan_for_networks(interface: &str) -> Result<Vec<WirelessNetwork>> {
 
 // TODO: get essid, refactor
 fn parse_nw(input: &str) -> IResult<&str, Vec<WirelessNetwork>> {
-    many0(cell)(input)
+    many0(cell)(input) // TODO: maybe avoid many0 because of allocations? https://www.youtube.com/watch?v=7VNsmlCAmHU
 }
 
 // TODO: does error handling work here?
