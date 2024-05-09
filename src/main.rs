@@ -14,6 +14,7 @@ use std::process::Command;
 const INTERFACE: &str = "Interface ";
 const CELL: &str = "Cell ";
 const FREQUENCY: &str = "Frequency:";
+const QUALITY: &str = "Quality=";
 
 #[derive(Debug, Eq, PartialEq)]
 struct WirelessNetwork {
@@ -164,8 +165,7 @@ fn scan_for_networks(interface: &str) -> Result<Vec<WirelessNetwork>> {
 
 // TODO: get essid, refactor
 fn parse_nw(input: &str) -> IResult<&str, Vec<WirelessNetwork>> {
-    many0(cell)(input) // TODO: maybe avoid many0 because of allocations? https://www.youtube.com/watch?v=7VNsmlCAmHU
-                       // check https://stackoverflow.com/questions/74993188/how-to-propagate-nom-fail-context-out-of-many0
+    many0(cell)(input)
 }
 
 // TODO: does error handling work here?
@@ -182,13 +182,21 @@ fn cell(input: &str) -> IResult<&str, WirelessNetwork> {
         tag(FREQUENCY),
         double,
     ))(input)?;
+    let (input, (_, _, quality_value, _, quality_limit)) = tuple((
+        take_until::<_, _, nom::error::Error<_>>(QUALITY),
+        tag(QUALITY),
+        digit1,
+        tag("/"),
+        digit1,
+    ))(input)?;
     log::info!(
-        "########## cell: {}, address: {}, frequency: {} ##########",
+        "########## cell: {}, address: {}, frequency: {}, quality: {}/{} ##########",
         cell_num,
         address,
-        frequency
+        frequency,
+        quality_value,
+        quality_limit
     );
-    // TODO: tuple (Quality=)(u32)(/)(u32)(Signal level=)(i32)(dBm)
     // TODO: tuple (ESSID:)(")(alphanumeric1)(")
     Ok((
         input,
