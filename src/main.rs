@@ -1,12 +1,11 @@
 use anyhow::{anyhow, Result};
 use eframe::egui;
 use nom::{
-    bytes::complete::{tag, take_until},
-    character::complete::{digit1, multispace0},
-    combinator::map,
+    bytes::complete::{tag, take_until, take_while},
+    character::complete::{digit1, not_line_ending},
     multi::many0,
     number::complete::double,
-    sequence::{preceded, tuple},
+    sequence::{delimited, tuple},
     IResult,
 };
 use std::process::Command;
@@ -15,14 +14,47 @@ const INTERFACE: &str = "Interface ";
 const CELL: &str = "Cell ";
 const FREQUENCY: &str = "Frequency:";
 const QUALITY: &str = "Quality=";
+const ESSID: &str = "ESSID:";
+const IEEE: &str = "IEEE 802.11";
 
 #[derive(Debug, Eq, PartialEq)]
+enum SecurityType {
+    WPA2,
+    WPA3,
+    WPA,
+    INVALID,
+}
+
+impl From<&str> for SecurityType {
+    fn from(value: &str) -> Self {
+        match value {
+            v if v.contains("WPA2") => SecurityType::WPA2,
+            v if v.contains("WPA3") => SecurityType::WPA3,
+            v if v.contains("WPA") => SecurityType::WPA,
+            _ => SecurityType::INVALID,
+        }
+    }
+}
+
+#[derive(Debug, PartialEq)]
 struct WirelessNetwork {
     pub address: String,
-    pub quality: String,
-    pub frequency: String,
+    pub quality: Quality,
+    pub frequency: f64,
     pub essid: String,
-    pub security_type: String,
+    pub security_type: SecurityType,
+}
+
+impl WirelessNetwork {
+    pub fn id(&self) -> String {
+        format!("{} - ({})", self.essid, self.address)
+    }
+}
+
+#[derive(Debug, Eq, PartialEq)]
+struct Quality {
+    pub value: u64,
+    pub limit: u64,
 }
 
 #[derive(Debug, Eq, PartialEq)]
@@ -53,15 +85,18 @@ fn main() -> Result<()> {
     let mut selected_wlan_interface = wlan_interfaces[0].name.clone();
 
     let wlan_networks = scan_for_networks(&selected_wlan_interface)?;
-    let wlan_networks: Vec<WirelessNetwork> = vec![WirelessNetwork {
-        essid: String::from("some network"),
-        security_type: String::from("IEEE 802.11i/WPA2 Version 1"),
-        frequency: String::from("5.18 GHz (Channel 36)"),
-        quality: String::from("25/70  Signal level=-85 dBm"),
-        address: String::from("AE:E2:D3:CC:59:F7"),
-    }];
+    // let wlan_networks: Vec<WirelessNetwork> = vec![WirelessNetwork {
+    //     essid: String::from("some network"),
+    //     security_type: SecurityType::WPA2,
+    //     frequency: 5.18,
+    //     quality: Quality {
+    //         value: 25,
+    //         limit: 70,
+    //     },
+    //     address: String::from("AE:E2:D3:CC:59:F7"),
+    // }];
     // let mut selected_wlan_network = wlan_networks[0].name.clone();
-    let mut selected_wlan_network = wlan_networks[0].essid.clone();
+    let mut selected_wlan_network = wlan_networks[0].id();
 
     let mut wlan_on = true;
 
@@ -103,8 +138,8 @@ fn main() -> Result<()> {
                                 wlan_networks.iter().for_each(|wn| {
                                     ui.selectable_value(
                                         &mut selected_wlan_network,
-                                        wn.essid.clone(),
-                                        wn.essid.clone(),
+                                        wn.id(),
+                                        wn.id(),
                                     );
                                 });
                             });
@@ -155,7 +190,7 @@ fn scan_for_networks(interface: &str) -> Result<Vec<WirelessNetwork>> {
 
     std::str::from_utf8(&output.stdout)
         .map(|out_str| {
-            log::info!("inp: {}", out_str);
+            // log::info!("inp: {}", out_str);
             parse_nw(out_str)
                 .map(|(_, wlan_networks)| wlan_networks)
                 .map_err(|e| anyhow!("parsing 'iwlist' output failed: {}", e))
@@ -163,12 +198,11 @@ fn scan_for_networks(interface: &str) -> Result<Vec<WirelessNetwork>> {
         .map_err(|_| anyhow!("output of 'iwlist' wasn't valid utf-8"))?
 }
 
-// TODO: get essid, refactor
+// TODO: use cut to propagate errors? (https://docs.rs/nom/latest/nom/combinator/fn.cut.html)
 fn parse_nw(input: &str) -> IResult<&str, Vec<WirelessNetwork>> {
     many0(cell)(input)
 }
 
-// TODO: does error handling work here?
 fn cell(input: &str) -> IResult<&str, WirelessNetwork> {
     let (input, (_, _, cell_num, _, address)) = tuple((
         take_until::<_, _, nom::error::Error<_>>(CELL),
@@ -189,23 +223,45 @@ fn cell(input: &str) -> IResult<&str, WirelessNetwork> {
         tag("/"),
         digit1,
     ))(input)?;
+    let (input, (_, _, essid)) = tuple((
+        take_until::<_, _, nom::error::Error<_>>(ESSID),
+        tag(ESSID),
+        delimited(tag("\""), take_while(|c| c != '"'), tag("\"")),
+    ))(input)?;
+    let (input, (_, _, security_type_line)) = tuple((
+        take_until::<_, _, nom::error::Error<_>>(IEEE),
+        tag(IEEE),
+        not_line_ending,
+    ))(input)
+    .unwrap();
+    let security_type = SecurityType::from(security_type_line);
+
     log::info!(
-        "########## cell: {}, address: {}, frequency: {}, quality: {}/{} ##########",
+        "########## cell: {}, address: {}, frequency: {}, quality: {}/{}, essid: {}, security_type: {:?} ##########",
         cell_num,
         address,
         frequency,
         quality_value,
-        quality_limit
+        quality_limit,
+        essid,
+        security_type
     );
-    // TODO: tuple (ESSID:)(")(alphanumeric1)(")
+
     Ok((
         input,
         WirelessNetwork {
-            essid: String::from("some network"),
-            address: String::from("AE:E2:D3:CC:59:F7"),
-            security_type: String::from("IEEE 802.11i/WPA2 Version 1"),
-            frequency: String::from("5.18 GHz (Channel 36)"),
-            quality: String::from("25/70  Signal level=-85 dBm"),
+            essid: essid.to_owned(),
+            address: address.to_owned(),
+            security_type,
+            frequency,
+            quality: Quality {
+                value: quality_value
+                    .parse::<u64>()
+                    .expect("quality value is a number"),
+                limit: quality_limit
+                    .parse::<u64>()
+                    .expect("quality value is a number"),
+            },
         },
     ))
 }
@@ -396,10 +452,13 @@ mod tests {
             parse_nw(input).unwrap().1,
             vec![WirelessNetwork {
                 essid: String::from("some network"),
-                security_type: String::from("IEEE 802.11i/WPA2 Version 1"),
-                frequency: String::from("5.18 GHz (Channel 36)"),
-                quality: String::from("25/70  Signal level=-85 dBm"),
-                address: String::from("AE:E2:D3:CC:59:F7"),
+                security_type: SecurityType::WPA2,
+                frequency: 2.437,
+                quality: Quality {
+                    value: 42,
+                    limit: 70,
+                },
+                address: String::from("D4:1A:D1:51:67:F2"),
             }]
         );
     }
