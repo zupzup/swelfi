@@ -204,13 +204,7 @@ fn parse_nw(input: &str) -> IResult<&str, Vec<WirelessNetwork>> {
 }
 
 fn cell(input: &str) -> IResult<&str, WirelessNetwork> {
-    let (input, (_, _, cell_num, _, address)) = tuple((
-        take_until::<_, _, nom::error::Error<_>>(CELL),
-        tag(CELL),
-        digit1,
-        tag(" - Address: "),
-        take_until("\n"),
-    ))(input)?;
+    let (input, address) = network_address(input)?;
     let (input, (_, _, frequency)) = tuple((
         take_until::<_, _, nom::error::Error<_>>(FREQUENCY),
         tag(FREQUENCY),
@@ -237,8 +231,7 @@ fn cell(input: &str) -> IResult<&str, WirelessNetwork> {
     let security_type = SecurityType::from(security_type_line);
 
     log::info!(
-        "########## cell: {}, address: {}, frequency: {}, quality: {}/{}, essid: {}, security_type: {:?} ##########",
-        cell_num,
+        "########## address: {}, frequency: {}, quality: {}/{}, essid: {}, security_type: {:?} ##########",
         address,
         frequency,
         quality_value,
@@ -264,6 +257,17 @@ fn cell(input: &str) -> IResult<&str, WirelessNetwork> {
             },
         },
     ))
+}
+
+fn network_address(input: &str) -> IResult<&str, &str> {
+    tuple((
+        take_until::<_, _, nom::error::Error<_>>(CELL),
+        tag(CELL),
+        digit1,
+        tag(" - Address: "),
+        take_until("\n"),
+    ))(input)
+    .map(|(inp, (_, _, _, address, _))| Ok((inp, address)))?
 }
 
 fn iw() -> Result<Vec<WirelessInterface>> {

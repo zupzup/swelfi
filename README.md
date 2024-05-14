@@ -17,9 +17,10 @@ cargo watch -c -w src -x run
     * [x] iwconfig parsing
 * [x] implement enable/disable wifi
 * [x] Create watch-workflow
-* fetch wifis
-    * show in a list
-    * highlight connected wifi
+* [x] fetch wifis
+    * [x]show in a list
+* fetch wifis asynchronously (thread+channel) and show loading indicator
+* highlight connected wifi
 * connect/disconnect to/from wifi
 * implement different schemes (WEP/WPA/WPA2)
 * implement "forget"
