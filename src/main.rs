@@ -19,19 +19,19 @@ const IEEE: &str = "IEEE 802.11";
 
 #[derive(Debug, Eq, PartialEq)]
 enum SecurityType {
-    WPA2,
-    WPA3,
-    WPA,
-    INVALID,
+    Wpa2,
+    Wpa3,
+    Wpa,
+    Invalid,
 }
 
 impl From<&str> for SecurityType {
     fn from(value: &str) -> Self {
         match value {
-            v if v.contains("WPA2") => SecurityType::WPA2,
-            v if v.contains("WPA3") => SecurityType::WPA3,
-            v if v.contains("WPA") => SecurityType::WPA,
-            _ => SecurityType::INVALID,
+            v if v.contains("WPA2") => SecurityType::Wpa2,
+            v if v.contains("WPA3") => SecurityType::Wpa3,
+            v if v.contains("WPA") => SecurityType::Wpa,
+            _ => SecurityType::Invalid,
         }
     }
 }
@@ -183,14 +183,12 @@ fn scan_for_networks(interface: &str) -> Result<Vec<WirelessNetwork>> {
     let output = Command::new("sudo")
         .args(["iwlist", interface, "s"])
         .output()?;
-    // let output = Command::new("iwlist").args([interface, "s"]).output()?;
     if !output.status.success() {
         return Err(anyhow!("getting wireless interfaces using 'iwlist' failed"));
     }
 
     std::str::from_utf8(&output.stdout)
         .map(|out_str| {
-            // log::info!("inp: {}", out_str);
             parse_nw(out_str)
                 .map(|(_, wlan_networks)| wlan_networks)
                 .map_err(|e| anyhow!("parsing 'iwlist' output failed: {}", e))
@@ -198,7 +196,18 @@ fn scan_for_networks(interface: &str) -> Result<Vec<WirelessNetwork>> {
         .map_err(|_| anyhow!("output of 'iwlist' wasn't valid utf-8"))?
 }
 
-// TODO: use cut to propagate errors? (https://docs.rs/nom/latest/nom/combinator/fn.cut.html)
+fn _switch_wlan_interface(interface: &str, switch: Switch) -> Result<()> {
+    let on_off = match switch {
+        Switch::On => "up",
+        Switch::Off => "down",
+    };
+
+    Command::new("ip")
+        .args(["link", "set", interface, on_off])
+        .output()?;
+    Ok(())
+}
+
 fn parse_nw(input: &str) -> IResult<&str, Vec<WirelessNetwork>> {
     many0(cell)(input)
 }
@@ -322,18 +331,6 @@ fn interface(input: &str) -> IResult<&str, WirelessInterface> {
             name: interface.to_owned(),
         },
     ))
-}
-
-fn switch_wlan_interface(interface: &str, switch: Switch) -> Result<()> {
-    let on_off = match switch {
-        Switch::On => "up",
-        Switch::Off => "down",
-    };
-
-    Command::new("ip")
-        .args(["link", "set", interface, on_off])
-        .output()?;
-    Ok(())
 }
 
 #[cfg(test)]
@@ -480,7 +477,7 @@ mod tests {
             parse_nw(input).unwrap().1,
             vec![WirelessNetwork {
                 essid: String::from("some network"),
-                security_type: SecurityType::WPA2,
+                security_type: SecurityType::Wpa2,
                 frequency: 2.437,
                 quality: Quality {
                     value: 42,
