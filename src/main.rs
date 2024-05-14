@@ -204,38 +204,19 @@ fn parse_nw(input: &str) -> IResult<&str, Vec<WirelessNetwork>> {
 }
 
 fn cell(input: &str) -> IResult<&str, WirelessNetwork> {
-    let (input, address) = network_address(input)?;
-    let (input, (_, _, frequency)) = tuple((
-        take_until::<_, _, nom::error::Error<_>>(FREQUENCY),
-        tag(FREQUENCY),
-        double,
+    let (input, (address, frequency, quality, essid, security_type)) = tuple((
+        network_address,
+        network_frequency,
+        network_quality,
+        network_essid,
+        network_security_type,
     ))(input)?;
-    let (input, (_, _, quality_value, _, quality_limit)) = tuple((
-        take_until::<_, _, nom::error::Error<_>>(QUALITY),
-        tag(QUALITY),
-        digit1,
-        tag("/"),
-        digit1,
-    ))(input)?;
-    let (input, (_, _, essid)) = tuple((
-        take_until::<_, _, nom::error::Error<_>>(ESSID),
-        tag(ESSID),
-        delimited(tag("\""), take_while(|c| c != '"'), tag("\"")),
-    ))(input)?;
-    let (input, (_, _, security_type_line)) = tuple((
-        take_until::<_, _, nom::error::Error<_>>(IEEE),
-        tag(IEEE),
-        not_line_ending,
-    ))(input)
-    .unwrap();
-    let security_type = SecurityType::from(security_type_line);
 
     log::info!(
-        "########## address: {}, frequency: {}, quality: {}/{}, essid: {}, security_type: {:?} ##########",
+        "########## address: {}, frequency: {}, quality: {:?}, essid: {}, security_type: {:?} ##########",
         address,
         frequency,
-        quality_value,
-        quality_limit,
+        quality,
         essid,
         security_type
     );
@@ -247,14 +228,7 @@ fn cell(input: &str) -> IResult<&str, WirelessNetwork> {
             address: address.to_owned(),
             security_type,
             frequency,
-            quality: Quality {
-                value: quality_value
-                    .parse::<u64>()
-                    .expect("quality value is a number"),
-                limit: quality_limit
-                    .parse::<u64>()
-                    .expect("quality value is a number"),
-            },
+            quality,
         },
     ))
 }
@@ -267,7 +241,57 @@ fn network_address(input: &str) -> IResult<&str, &str> {
         tag(" - Address: "),
         take_until("\n"),
     ))(input)
-    .map(|(inp, (_, _, _, address, _))| Ok((inp, address)))?
+    .map(|(inp, (_, _, _, _, address))| Ok((inp, address)))?
+}
+
+fn network_frequency(input: &str) -> IResult<&str, f64> {
+    tuple((
+        take_until::<_, _, nom::error::Error<_>>(FREQUENCY),
+        tag(FREQUENCY),
+        double,
+    ))(input)
+    .map(|(inp, (_, _, frequency))| Ok((inp, frequency)))?
+}
+
+fn network_quality(input: &str) -> IResult<&str, Quality> {
+    tuple((
+        take_until::<_, _, nom::error::Error<_>>(QUALITY),
+        tag(QUALITY),
+        digit1,
+        tag("/"),
+        digit1,
+    ))(input)
+    .map(|(inp, (_, _, quality_value, _, quality_limit))| {
+        Ok((
+            inp,
+            Quality {
+                value: quality_value
+                    .parse::<u64>()
+                    .expect("quality value is a number"),
+                limit: quality_limit
+                    .parse::<u64>()
+                    .expect("quality value is a number"),
+            },
+        ))
+    })?
+}
+
+fn network_essid(input: &str) -> IResult<&str, &str> {
+    tuple((
+        take_until::<_, _, nom::error::Error<_>>(ESSID),
+        tag(ESSID),
+        delimited(tag("\""), take_while(|c| c != '"'), tag("\"")),
+    ))(input)
+    .map(|(inp, (_, _, essid))| Ok((inp, essid)))?
+}
+
+fn network_security_type(input: &str) -> IResult<&str, SecurityType> {
+    tuple((
+        take_until::<_, _, nom::error::Error<_>>(IEEE),
+        tag(IEEE),
+        not_line_ending,
+    ))(input)
+    .map(|(inp, (_, _, security_type_line))| Ok((inp, SecurityType::from(security_type_line))))?
 }
 
 fn iw() -> Result<Vec<WirelessInterface>> {
