@@ -27,6 +27,7 @@ cargo watch -c -w src -x run
 * implement auto-connect on startup (necessary?)
 * Custom style (check Settings from examples)
 * System Tray / Sway status bar (on click, open)
+    * block.click in i3status-rust on net block
 * Start with `sudo -E x`
 * Consider using libnl instead of iw/iwlist etc. ([libnl](http://www.infradead.org/~tgr/libnl/)
     * check out neli (https://github.com/jbaublitz/neli) e.g. implemented in i3-status rs (https://github.com/greshake/i3status-rust/blob/master/src/netlink.rs)
