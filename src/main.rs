@@ -9,6 +9,7 @@ use nom::{
     IResult,
 };
 use std::process::Command;
+use std::sync::mpsc::channel;
 
 const INTERFACE: &str = "Interface ";
 const CELL: &str = "Cell ";
@@ -63,6 +64,11 @@ struct WirelessInterface {
 }
 
 #[derive(Debug)]
+enum Event {
+    Networks(Vec<WirelessNetwork>),
+}
+
+#[derive(Debug)]
 enum Switch {
     On,
     Off,
@@ -77,6 +83,7 @@ fn main() -> Result<()> {
             .with_inner_size([640.0, 480.0]),
         ..Default::default()
     };
+    let (sender, receiver) = channel::<Event>();
 
     let wlan_interfaces = iw()?;
     // let wlan_interfaces: Vec<WirelessInterface> = vec![WirelessInterface {
@@ -85,6 +92,8 @@ fn main() -> Result<()> {
     let mut selected_wlan_interface = wlan_interfaces[0].name.clone();
 
     let wlan_networks = scan_for_networks(&selected_wlan_interface)?;
+
+    std::thread::spawn(move || {});
     // let wlan_networks: Vec<WirelessNetwork> = vec![WirelessNetwork {
     //     essid: String::from("some network"),
     //     security_type: SecurityType::WPA2,
