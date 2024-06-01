@@ -74,6 +74,83 @@ enum Switch {
     Off,
 }
 
+struct SwelfiApp {
+    wlan_interfaces: Vec<WirelessInterface>,
+    selected_wlan_interface: String,
+    wlan_networks: Vec<WirelessNetwork>,
+    selected_wlan_network: String,
+    wlan_on: bool,
+}
+
+impl SwelfiApp {
+    fn new(
+        _context: &eframe::CreationContext<'_>,
+        wlan_interfaces: Vec<WirelessInterface>,
+        selected_wlan_interface: String,
+        wlan_networks: Vec<WirelessNetwork>,
+        selected_wlan_network: String,
+        wlan_on: bool,
+    ) -> Self {
+        Self {
+            wlan_interfaces,
+            selected_wlan_interface,
+            wlan_networks,
+            selected_wlan_network,
+            wlan_on,
+        }
+    }
+}
+
+impl eframe::App for SwelfiApp {
+    fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
+        egui::CentralPanel::default().show(ctx, |ui| {
+            ui.heading("Swelfi");
+            egui::Grid::new("structure")
+                .num_columns(2)
+                .spacing([20.0, 20.0])
+                .show(ui, |ui| {
+                    egui::Grid::new("interfaces and networks")
+                        .num_columns(2)
+                        .spacing([20.0, 20.0])
+                        .min_col_width(80.0)
+                        .show(ui, |ui| {
+                            ui.add(egui::Label::new("WLAN Interface"));
+                            egui::ComboBox::from_id_source("wlan interfaces")
+                                .selected_text(&self.selected_wlan_interface)
+                                .show_ui(ui, |ui| {
+                                    self.wlan_interfaces.iter().for_each(|wi| {
+                                        ui.selectable_value(
+                                            &mut self.selected_wlan_interface,
+                                            wi.name.clone(),
+                                            wi.name.clone(),
+                                        );
+                                    });
+                                });
+                            ui.horizontal(|ui| {
+                                ui.add(egui::Label::new("On"));
+                                ui.add(toggle(&mut self.wlan_on));
+                                ui.add(egui::Label::new("Off"));
+                            });
+                            ui.end_row();
+
+                            ui.with_layout(egui::Layout::left_to_right(egui::Align::TOP), |ui| {
+                                ui.add(egui::Label::new("Networks"));
+                            });
+                            ui.vertical(|ui| {
+                                self.wlan_networks.iter().for_each(|wn| {
+                                    ui.selectable_value(
+                                        &mut self.selected_wlan_network,
+                                        wn.id(),
+                                        wn.id(),
+                                    );
+                                });
+                            });
+                        });
+                });
+        });
+    }
+}
+
 fn main() -> Result<()> {
     env_logger::init();
 
@@ -89,7 +166,7 @@ fn main() -> Result<()> {
     // let wlan_interfaces: Vec<WirelessInterface> = vec![WirelessInterface {
     //     name: String::from("tstintf"),
     // }]
-    let mut selected_wlan_interface = wlan_interfaces[0].name.clone();
+    let selected_wlan_interface = wlan_interfaces[0].name.clone();
 
     let wlan_networks = scan_for_networks(&selected_wlan_interface)?;
 
@@ -105,57 +182,22 @@ fn main() -> Result<()> {
     //     address: String::from("AE:E2:D3:CC:59:F7"),
     // }];
     // let mut selected_wlan_network = wlan_networks[0].name.clone();
-    let mut selected_wlan_network = wlan_networks[0].id();
+    let selected_wlan_network = wlan_networks[0].id();
 
-    let mut wlan_on = true;
-
-    eframe::run_simple_native("Swelfi", options, move |ctx, _frame| {
-        egui::CentralPanel::default().show(ctx, |ui| {
-            ui.heading("Swelfi");
-            egui::Grid::new("structure")
-                .num_columns(2)
-                .spacing([20.0, 20.0])
-                .show(ui, |ui| {
-                    egui::Grid::new("interfaces and networks")
-                        .num_columns(2)
-                        .spacing([20.0, 20.0])
-                        .min_col_width(80.0)
-                        .show(ui, |ui| {
-                            ui.add(egui::Label::new("WLAN Interface"));
-                            egui::ComboBox::from_id_source("wlan interfaces")
-                                .selected_text(&selected_wlan_interface)
-                                .show_ui(ui, |ui| {
-                                    wlan_interfaces.iter().for_each(|wi| {
-                                        ui.selectable_value(
-                                            &mut selected_wlan_interface,
-                                            wi.name.clone(),
-                                            wi.name.clone(),
-                                        );
-                                    });
-                                });
-                            ui.horizontal(|ui| {
-                                ui.add(egui::Label::new("On"));
-                                ui.add(toggle(&mut wlan_on));
-                                ui.add(egui::Label::new("Off"));
-                            });
-                            ui.end_row();
-
-                            ui.with_layout(egui::Layout::left_to_right(egui::Align::TOP), |ui| {
-                                ui.add(egui::Label::new("Networks"));
-                            });
-                            ui.vertical(|ui| {
-                                wlan_networks.iter().for_each(|wn| {
-                                    ui.selectable_value(
-                                        &mut selected_wlan_network,
-                                        wn.id(),
-                                        wn.id(),
-                                    );
-                                });
-                            });
-                        });
-                });
-        });
-    })
+    eframe::run_native(
+        "Swelfi",
+        options,
+        Box::new(|context| {
+            Box::new(SwelfiApp::new(
+                context,
+                wlan_interfaces,
+                selected_wlan_interface,
+                wlan_networks,
+                selected_wlan_network,
+                true,
+            ))
+        }),
+    )
     .map_err(|e| anyhow!("eframe error: {}", e))
 }
 
