@@ -19,7 +19,12 @@ cargo watch -c -w src -x run
 * [x] Create watch-workflow
 * [x] fetch wifis
     * [x]show in a list
+* Introduce AppState
 * fetch wifis asynchronously (thread+channel) and show loading indicator
+    * Provide sender to `update`
+    * Put `receiver` in thread, send clone of `frame` and of `Arc<Mutex<AppState>>` in there as well
+        * wait for Events
+        * handle event (e.g. refresh wifis), update AppState and trigger repaint
 * highlight connected wifi
 * connect/disconnect to/from wifi
 * implement different schemes (WEP/WPA/WPA2)
