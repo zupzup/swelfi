@@ -89,23 +89,8 @@ struct AppState {
 }
 
 impl SwelfiApp {
-    fn new(
-        _context: &eframe::CreationContext<'_>,
-        wlan_interfaces: Vec<WirelessInterface>,
-        selected_wlan_interface: String,
-        wlan_networks: Vec<WirelessNetwork>,
-        selected_wlan_network: String,
-        wlan_on: bool,
-    ) -> Self {
-        Self {
-            app_state: AppState {
-                wlan_interfaces,
-                selected_wlan_interface,
-                wlan_networks,
-                selected_wlan_network,
-                wlan_on,
-            },
-        }
+    fn new(app_state: AppState) -> Self {
+        Self { app_state }
     }
 }
 
@@ -191,22 +176,18 @@ fn main() -> Result<()> {
     // }];
     // let mut selected_wlan_network = wlan_networks[0].name.clone();
     let selected_wlan_network = wlan_networks[0].id();
+    let app_state = AppState {
+        wlan_interfaces,
+        selected_wlan_interface,
+        wlan_networks,
+        selected_wlan_network,
+        wlan_on: true,
+    };
 
-    eframe::run_native(
-        "Swelfi",
-        options,
-        Box::new(|context| {
-            Box::new(SwelfiApp::new(
-                context,
-                wlan_interfaces,
-                selected_wlan_interface,
-                wlan_networks,
-                selected_wlan_network,
-                true,
-            ))
-        }),
-    )
-    .map_err(|e| anyhow!("eframe error: {}", e))
+    let app = SwelfiApp::new(app_state);
+
+    eframe::run_native("Swelfi", options, Box::new(|context| Box::new(app)))
+        .map_err(|e| anyhow!("eframe error: {}", e))
 }
 
 pub fn toggle(on: &mut bool) -> impl egui::Widget + '_ {
