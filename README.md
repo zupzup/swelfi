@@ -20,6 +20,7 @@ cargo watch -c -w src -x run
 * [x] fetch wifis
     * [x]show in a list
 * fetch wifis asynchronously (thread+channel) and show loading indicator
+    * How to update app state?
     * Provide sender to `update`
     * Put `receiver` in thread, send clone of `frame` and of `Arc<Mutex<AppState>>` in there as well
         * wait for Events

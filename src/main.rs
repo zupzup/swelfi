@@ -63,9 +63,8 @@ struct WirelessInterface {
     pub name: String,
 }
 
-#[derive(Debug)]
 enum Event {
-    RefreshNetworks(egui::Frame),
+    RefreshNetworks(egui::Context),
 }
 
 #[derive(Debug)]
@@ -90,7 +89,14 @@ struct AppState {
 }
 
 impl SwelfiApp {
-    fn new(app_state: AppState, event_sender: Sender<Event>) -> Self {
+    fn new(
+        context: &eframe::CreationContext<'_>,
+        app_state: AppState,
+        event_sender: Sender<Event>,
+    ) -> Self {
+        event_sender
+            .send(Event::RefreshNetworks(context.egui_ctx.clone()))
+            .unwrap();
         Self {
             app_state,
             event_sender,
@@ -163,9 +169,9 @@ fn main() -> Result<()> {
     std::thread::spawn(move || {
         while let Ok(event) = receiver.recv() {
             match event {
-                Event::RefreshNetworks(frame) => (),
+                // TODO: handle event
+                Event::RefreshNetworks(ctx) => ctx.request_repaint(),
             }
-            // TODO: handle event
         }
     });
 
@@ -197,10 +203,12 @@ fn main() -> Result<()> {
         wlan_on: true,
     };
 
-    let app = SwelfiApp::new(app_state, sender);
-
-    eframe::run_native("Swelfi", options, Box::new(|context| Box::new(app)))
-        .map_err(|e| anyhow!("eframe error: {}", e))
+    eframe::run_native(
+        "Swelfi",
+        options,
+        Box::new(|context| Box::new(SwelfiApp::new(context, app_state, sender))),
+    )
+    .map_err(|e| anyhow!("eframe error: {}", e))
 }
 
 pub fn toggle(on: &mut bool) -> impl egui::Widget + '_ {
