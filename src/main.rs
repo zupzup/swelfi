@@ -74,7 +74,13 @@ enum Switch {
     Off,
 }
 
+#[derive(Debug)]
 struct SwelfiApp {
+    app_state: AppState,
+}
+
+#[derive(Debug)]
+struct AppState {
     wlan_interfaces: Vec<WirelessInterface>,
     selected_wlan_interface: String,
     wlan_networks: Vec<WirelessNetwork>,
@@ -92,11 +98,13 @@ impl SwelfiApp {
         wlan_on: bool,
     ) -> Self {
         Self {
-            wlan_interfaces,
-            selected_wlan_interface,
-            wlan_networks,
-            selected_wlan_network,
-            wlan_on,
+            app_state: AppState {
+                wlan_interfaces,
+                selected_wlan_interface,
+                wlan_networks,
+                selected_wlan_network,
+                wlan_on,
+            },
         }
     }
 }
@@ -116,11 +124,11 @@ impl eframe::App for SwelfiApp {
                         .show(ui, |ui| {
                             ui.add(egui::Label::new("WLAN Interface"));
                             egui::ComboBox::from_id_source("wlan interfaces")
-                                .selected_text(&self.selected_wlan_interface)
+                                .selected_text(&self.app_state.selected_wlan_interface)
                                 .show_ui(ui, |ui| {
-                                    self.wlan_interfaces.iter().for_each(|wi| {
+                                    self.app_state.wlan_interfaces.iter().for_each(|wi| {
                                         ui.selectable_value(
-                                            &mut self.selected_wlan_interface,
+                                            &mut self.app_state.selected_wlan_interface,
                                             wi.name.clone(),
                                             wi.name.clone(),
                                         );
@@ -128,7 +136,7 @@ impl eframe::App for SwelfiApp {
                                 });
                             ui.horizontal(|ui| {
                                 ui.add(egui::Label::new("On"));
-                                ui.add(toggle(&mut self.wlan_on));
+                                ui.add(toggle(&mut self.app_state.wlan_on));
                                 ui.add(egui::Label::new("Off"));
                             });
                             ui.end_row();
@@ -137,9 +145,9 @@ impl eframe::App for SwelfiApp {
                                 ui.add(egui::Label::new("Networks"));
                             });
                             ui.vertical(|ui| {
-                                self.wlan_networks.iter().for_each(|wn| {
+                                self.app_state.wlan_networks.iter().for_each(|wn| {
                                     ui.selectable_value(
-                                        &mut self.selected_wlan_network,
+                                        &mut self.app_state.selected_wlan_network,
                                         wn.id(),
                                         wn.id(),
                                     );
