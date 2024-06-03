@@ -9,7 +9,7 @@ use nom::{
     IResult,
 };
 use std::process::Command;
-use std::sync::mpsc::channel;
+use std::sync::mpsc::{channel, Sender};
 
 const INTERFACE: &str = "Interface ";
 const CELL: &str = "Cell ";
@@ -65,7 +65,7 @@ struct WirelessInterface {
 
 #[derive(Debug)]
 enum Event {
-    Networks(Vec<WirelessNetwork>),
+    RefreshNetworks(egui::Frame),
 }
 
 #[derive(Debug)]
@@ -77,6 +77,7 @@ enum Switch {
 #[derive(Debug)]
 struct SwelfiApp {
     app_state: AppState,
+    event_sender: Sender<Event>,
 }
 
 #[derive(Debug)]
@@ -89,8 +90,11 @@ struct AppState {
 }
 
 impl SwelfiApp {
-    fn new(app_state: AppState) -> Self {
-        Self { app_state }
+    fn new(app_state: AppState, event_sender: Sender<Event>) -> Self {
+        Self {
+            app_state,
+            event_sender,
+        }
     }
 }
 
@@ -147,6 +151,7 @@ impl eframe::App for SwelfiApp {
 fn main() -> Result<()> {
     env_logger::init();
 
+    // spawn thread for background actions
     let options = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default()
             .with_always_on_top()
@@ -154,6 +159,15 @@ fn main() -> Result<()> {
         ..Default::default()
     };
     let (sender, receiver) = channel::<Event>();
+
+    std::thread::spawn(move || {
+        while let Ok(event) = receiver.recv() {
+            match event {
+                Event::RefreshNetworks(frame) => (),
+            }
+            // TODO: handle event
+        }
+    });
 
     let wlan_interfaces = iw()?;
     // let wlan_interfaces: Vec<WirelessInterface> = vec![WirelessInterface {
@@ -163,7 +177,6 @@ fn main() -> Result<()> {
 
     let wlan_networks = scan_for_networks(&selected_wlan_interface)?;
 
-    std::thread::spawn(move || {});
     // let wlan_networks: Vec<WirelessNetwork> = vec![WirelessNetwork {
     //     essid: String::from("some network"),
     //     security_type: SecurityType::WPA2,
@@ -184,7 +197,7 @@ fn main() -> Result<()> {
         wlan_on: true,
     };
 
-    let app = SwelfiApp::new(app_state);
+    let app = SwelfiApp::new(app_state, sender);
 
     eframe::run_native("Swelfi", options, Box::new(|context| Box::new(app)))
         .map_err(|e| anyhow!("eframe error: {}", e))
