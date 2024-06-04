@@ -123,6 +123,10 @@ impl eframe::App for SwelfiApp {
         egui::CentralPanel::default().show(ctx, |ui| {
             ui.heading("Swelfi");
             ui.label(format!("FPS: {:.1}", self.app_state.frame_history.fps()));
+            ui.label(format!(
+                "Mean CPU usage: {:.2} ms / frame",
+                1e3 * self.app_state.frame_history.mean_frame_time()
+            ));
             egui::Grid::new("structure")
                 .num_columns(2)
                 .spacing([20.0, 20.0])
