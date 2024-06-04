@@ -8,8 +8,11 @@ use nom::{
     sequence::{delimited, tuple},
     IResult,
 };
-use std::sync::mpsc::{channel, Sender};
 use std::{process::Command, sync::mpsc::Receiver};
+use std::{
+    sync::mpsc::{channel, Sender},
+    time::SystemTime,
+};
 
 const INTERFACE: &str = "Interface ";
 const CELL: &str = "Cell ";
@@ -81,12 +84,21 @@ struct SwelfiApp {
 }
 
 #[derive(Debug)]
+struct Fps {
+    then: SystemTime,
+    now: SystemTime,
+    fps: usize,
+    fps_str: String,
+}
+
+#[derive(Debug)]
 struct AppState {
     wlan_interfaces: Vec<WirelessInterface>,
     selected_wlan_interface: String,
     wlan_networks: Vec<WirelessNetwork>,
     selected_wlan_network: String,
     wlan_on: bool,
+    fps: Fps,
 }
 
 impl SwelfiApp {
@@ -109,11 +121,28 @@ impl SwelfiApp {
 
 impl eframe::App for SwelfiApp {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
+        //ctx.request_repaint(); - continuous mode
+        self.app_state.fps.fps += 1;
+        if self
+            .app_state
+            .fps
+            .now
+            .duration_since(self.app_state.fps.then)
+            .unwrap()
+            .as_millis()
+            > 1000
+        {
+            self.app_state.fps.fps_str = format!("fps: {}", self.app_state.fps.fps);
+            self.app_state.fps.fps = 0;
+            self.app_state.fps.then = self.app_state.fps.now;
+        }
+        self.app_state.fps.now = SystemTime::now();
         while let Ok(event) = self.event_receiver.try_recv() {
             // TODO: handle event - update app state
         }
         egui::CentralPanel::default().show(ctx, |ui| {
             ui.heading("Swelfi");
+            ui.label(format!("FPS: {}", self.app_state.fps.fps_str));
             egui::Grid::new("structure")
                 .num_columns(2)
                 .spacing([20.0, 20.0])
@@ -208,6 +237,12 @@ fn main() -> Result<()> {
         wlan_networks,
         selected_wlan_network,
         wlan_on: true,
+        fps: Fps {
+            then: SystemTime::now(),
+            now: SystemTime::now(),
+            fps: 0,
+            fps_str: String::new(),
+        },
     };
 
     eframe::run_native(
