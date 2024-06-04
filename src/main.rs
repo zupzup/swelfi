@@ -8,8 +8,8 @@ use nom::{
     sequence::{delimited, tuple},
     IResult,
 };
-use std::process::Command;
 use std::sync::mpsc::{channel, Sender};
+use std::{process::Command, sync::mpsc::Receiver};
 
 const INTERFACE: &str = "Interface ";
 const CELL: &str = "Cell ";
@@ -76,7 +76,8 @@ enum Switch {
 #[derive(Debug)]
 struct SwelfiApp {
     app_state: AppState,
-    event_sender: Sender<Event>,
+    background_event_sender: Sender<Event>,
+    event_receiver: Receiver<Event>,
 }
 
 #[derive(Debug)]
@@ -92,20 +93,25 @@ impl SwelfiApp {
     fn new(
         context: &eframe::CreationContext<'_>,
         app_state: AppState,
-        event_sender: Sender<Event>,
+        background_event_sender: Sender<Event>,
+        event_receiver: Receiver<Event>,
     ) -> Self {
-        event_sender
+        background_event_sender
             .send(Event::RefreshNetworks(context.egui_ctx.clone()))
             .unwrap();
         Self {
             app_state,
-            event_sender,
+            background_event_sender,
+            event_receiver,
         }
     }
 }
 
 impl eframe::App for SwelfiApp {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
+        while let Ok(event) = self.event_receiver.try_recv() {
+            // TODO: handle event - update app state
+        }
         egui::CentralPanel::default().show(ctx, |ui| {
             ui.heading("Swelfi");
             egui::Grid::new("structure")
@@ -164,10 +170,11 @@ fn main() -> Result<()> {
             .with_inner_size([640.0, 480.0]),
         ..Default::default()
     };
-    let (sender, receiver) = channel::<Event>();
+    let (background_event_sender, background_event_receiver) = channel::<Event>();
+    let (event_sender, event_receiver) = channel::<Event>();
 
     std::thread::spawn(move || {
-        while let Ok(event) = receiver.recv() {
+        while let Ok(event) = background_event_receiver.recv() {
             match event {
                 // TODO: handle event
                 Event::RefreshNetworks(ctx) => ctx.request_repaint(),
@@ -206,7 +213,14 @@ fn main() -> Result<()> {
     eframe::run_native(
         "Swelfi",
         options,
-        Box::new(|context| Box::new(SwelfiApp::new(context, app_state, sender))),
+        Box::new(|context| {
+            Box::new(SwelfiApp::new(
+                context,
+                app_state,
+                background_event_sender,
+                event_receiver,
+            ))
+        }),
     )
     .map_err(|e| anyhow!("eframe error: {}", e))
 }
