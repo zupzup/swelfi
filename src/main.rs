@@ -8,11 +8,8 @@ use nom::{
     sequence::{delimited, tuple},
     IResult,
 };
+use std::sync::mpsc::{channel, Sender};
 use std::{process::Command, sync::mpsc::Receiver};
-use std::{
-    sync::mpsc::{channel, Sender},
-    time::SystemTime,
-};
 
 mod fps;
 
@@ -69,7 +66,8 @@ struct WirelessInterface {
 }
 
 enum Event {
-    RefreshNetworks(egui::Context),
+    RefreshNetworks(egui::Context, String),
+    UpdateNetworks(Vec<WirelessNetwork>),
 }
 
 #[derive(Debug)]
@@ -101,8 +99,12 @@ impl SwelfiApp {
         event_receiver: Receiver<Event>,
     ) -> Self {
         background_event_sender
-            .send(Event::RefreshNetworks(context.egui_ctx.clone()))
+            .send(Event::RefreshNetworks(
+                context.egui_ctx.clone(),
+                app_state.selected_wlan_interface.clone(),
+            ))
             .unwrap();
+        log::info!("sent event...waiting");
         Self {
             app_state,
             background_event_sender,
@@ -118,6 +120,13 @@ impl eframe::App for SwelfiApp {
             .frame_history
             .on_new_frame(ctx.input(|i| i.time), frame.info().cpu_usage);
         while let Ok(event) = self.event_receiver.try_recv() {
+            match event {
+                Event::UpdateNetworks(networks) => {
+                    self.app_state.selected_wlan_network = networks[0].id();
+                    self.app_state.wlan_networks = networks;
+                }
+                _ => (),
+            };
             // TODO: handle event - update app state
         }
         egui::CentralPanel::default().show(ctx, |ui| {
@@ -190,7 +199,14 @@ fn main() -> Result<()> {
         while let Ok(event) = background_event_receiver.recv() {
             match event {
                 // TODO: handle event
-                Event::RefreshNetworks(ctx) => ctx.request_repaint(),
+                Event::RefreshNetworks(ctx, selected_wlan_interface) => {
+                    let networks = scan_for_networks(&selected_wlan_interface).unwrap(); // TODO:
+                                                                                         // handle
+                                                                                         // errors
+                    event_sender.send(Event::UpdateNetworks(networks)).unwrap();
+                    ctx.request_repaint();
+                }
+                _ => (),
             }
         }
     });
@@ -201,7 +217,7 @@ fn main() -> Result<()> {
     // }]
     let selected_wlan_interface = wlan_interfaces[0].name.clone();
 
-    let wlan_networks = scan_for_networks(&selected_wlan_interface)?;
+    let wlan_networks: Vec<WirelessNetwork> = vec![]; // scan_for_networks(&selected_wlan_interface)?;
 
     // let wlan_networks: Vec<WirelessNetwork> = vec![WirelessNetwork {
     //     essid: String::from("some network"),
@@ -214,7 +230,7 @@ fn main() -> Result<()> {
     //     address: String::from("AE:E2:D3:CC:59:F7"),
     // }];
     // let mut selected_wlan_network = wlan_networks[0].name.clone();
-    let selected_wlan_network = wlan_networks[0].id();
+    let selected_wlan_network = String::new(); //wlan_networks[0].id();
     let app_state = AppState {
         wlan_interfaces,
         selected_wlan_interface,
