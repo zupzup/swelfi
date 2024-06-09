@@ -85,7 +85,7 @@ struct SwelfiApp {
 struct AppState {
     wlan_interfaces: Vec<WirelessInterface>,
     selected_wlan_interface: String,
-    wlan_networks: Vec<WirelessNetwork>,
+    wlan_networks: Option<Vec<WirelessNetwork>>,
     selected_wlan_network: String,
     wlan_on: bool,
     frame_history: fps::FrameHistory,
@@ -122,7 +122,7 @@ impl eframe::App for SwelfiApp {
         while let Ok(event) = self.event_receiver.try_recv() {
             if let Event::UpdateNetworks(networks) = event {
                 self.app_state.selected_wlan_network = networks[0].id();
-                self.app_state.wlan_networks = networks;
+                self.app_state.wlan_networks = Some(networks);
             }
         }
         egui::CentralPanel::default().show(ctx, |ui| {
@@ -164,13 +164,17 @@ impl eframe::App for SwelfiApp {
                                 ui.add(egui::Label::new("Networks"));
                             });
                             ui.vertical(|ui| {
-                                self.app_state.wlan_networks.iter().for_each(|wn| {
-                                    ui.selectable_value(
-                                        &mut self.app_state.selected_wlan_network,
-                                        wn.id(),
-                                        wn.id(),
-                                    );
-                                });
+                                if let Some(ref networks) = self.app_state.wlan_networks {
+                                    networks.iter().for_each(|wn| {
+                                        ui.selectable_value(
+                                            &mut self.app_state.selected_wlan_network,
+                                            wn.id(),
+                                            wn.id(),
+                                        );
+                                    });
+                                } else {
+                                    ui.spinner();
+                                }
                             });
                         });
                 });
@@ -209,8 +213,6 @@ fn main() -> Result<()> {
     // }]
     let selected_wlan_interface = wlan_interfaces[0].name.clone();
 
-    let wlan_networks: Vec<WirelessNetwork> = vec![]; // scan_for_networks(&selected_wlan_interface)?;
-
     // let wlan_networks: Vec<WirelessNetwork> = vec![WirelessNetwork {
     //     essid: String::from("some network"),
     //     security_type: SecurityType::WPA2,
@@ -226,7 +228,7 @@ fn main() -> Result<()> {
     let app_state = AppState {
         wlan_interfaces,
         selected_wlan_interface,
-        wlan_networks,
+        wlan_networks: None,
         selected_wlan_network,
         wlan_on: true,
         frame_history: fps::FrameHistory::default(),
