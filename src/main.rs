@@ -120,14 +120,10 @@ impl eframe::App for SwelfiApp {
             .frame_history
             .on_new_frame(ctx.input(|i| i.time), frame.info().cpu_usage);
         while let Ok(event) = self.event_receiver.try_recv() {
-            match event {
-                Event::UpdateNetworks(networks) => {
-                    self.app_state.selected_wlan_network = networks[0].id();
-                    self.app_state.wlan_networks = networks;
-                }
-                _ => (),
-            };
-            // TODO: handle event - update app state
+            if let Event::UpdateNetworks(networks) = event {
+                self.app_state.selected_wlan_network = networks[0].id();
+                self.app_state.wlan_networks = networks;
+            }
         }
         egui::CentralPanel::default().show(ctx, |ui| {
             ui.heading("Swelfi");
@@ -197,16 +193,12 @@ fn main() -> Result<()> {
 
     std::thread::spawn(move || {
         while let Ok(event) = background_event_receiver.recv() {
-            match event {
-                // TODO: handle event
-                Event::RefreshNetworks(ctx, selected_wlan_interface) => {
-                    let networks = scan_for_networks(&selected_wlan_interface).unwrap(); // TODO:
-                                                                                         // handle
-                                                                                         // errors
-                    event_sender.send(Event::UpdateNetworks(networks)).unwrap();
-                    ctx.request_repaint();
-                }
-                _ => (),
+            if let Event::RefreshNetworks(ctx, selected_wlan_interface) = event {
+                let networks = scan_for_networks(&selected_wlan_interface).unwrap(); // TODO:
+                                                                                     // handle
+                                                                                     // errors
+                event_sender.send(Event::UpdateNetworks(networks)).unwrap();
+                ctx.request_repaint();
             }
         }
     });

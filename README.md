@@ -10,21 +10,16 @@ cargo watch -c -w src -x run
 
 * [x] Draw UI sketch
 * [x] Use WGPU backend
-* Build UI outline with dummy data
+* [x] Build UI outline with dummy data
 * Fetch wireless interfaces (https://www.baeldung.com/linux/connect-network-cli)
-    * auto-set default
+    * [x] auto-set default
     * [x] make selectable
     * [x] iwconfig parsing
 * [x] implement enable/disable wifi
 * [x] Create watch-workflow
 * [x] fetch wifis
     * [x]show in a list
-* fetch wifis asynchronously (thread+channel) and show loading indicator
-    * How to update app state?
-    * Provide sender to `update`
-    * Put `receiver` in thread, send clone of `frame` and of `Arc<Mutex<AppState>>` in there as well
-        * wait for Events
-        * handle event (e.g. refresh wifis), update AppState and trigger repaint
+* [x] fetch wifis asynchronously (thread+channel) and show loading indicator
 * highlight connected wifi
 * connect/disconnect to/from wifi
 * implement different schemes (WEP/WPA/WPA2)
