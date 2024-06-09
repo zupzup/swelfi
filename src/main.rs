@@ -14,6 +14,7 @@ use std::{process::Command, sync::mpsc::Receiver};
 mod fps;
 
 const INTERFACE: &str = "Interface ";
+const SSID: &str = "ssid ";
 const CELL: &str = "Cell ";
 const FREQUENCY: &str = "Frequency:";
 const QUALITY: &str = "Quality=";
@@ -63,6 +64,7 @@ struct Quality {
 #[derive(Debug, Eq, PartialEq)]
 struct WirelessInterface {
     pub name: String,
+    pub connected_ssid: String,
 }
 
 enum Event {
@@ -103,7 +105,7 @@ impl SwelfiApp {
                 context.egui_ctx.clone(),
                 app_state.selected_wlan_interface.clone(),
             ))
-            .unwrap();
+            .unwrap(); // TODO: handle error
         log::info!("sent event...waiting");
         Self {
             app_state,
@@ -160,10 +162,20 @@ impl eframe::App for SwelfiApp {
                             });
                             ui.end_row();
 
-                            ui.with_layout(egui::Layout::left_to_right(egui::Align::TOP), |ui| {
+                            ui.with_layout(egui::Layout::top_down(egui::Align::TOP), |ui| {
                                 ui.add(egui::Label::new("Networks"));
+                                if ui.button("refresh").clicked() {
+                                    self.app_state.wlan_networks = None;
+                                    self.background_event_sender
+                                        .send(Event::RefreshNetworks(
+                                            ctx.clone(),
+                                            self.app_state.selected_wlan_interface.clone(),
+                                        ))
+                                        .unwrap();
+                                }
                             });
                             ui.vertical(|ui| {
+                                ui.set_width(250.0);
                                 if let Some(ref networks) = self.app_state.wlan_networks {
                                     networks.iter().for_each(|wn| {
                                         ui.selectable_value(
@@ -176,6 +188,7 @@ impl eframe::App for SwelfiApp {
                                     ui.spinner();
                                 }
                             });
+                            ui.end_row();
                         });
                 });
         });
@@ -424,10 +437,13 @@ fn parse_iw(input: &str) -> IResult<&str, Vec<WirelessInterface>> {
 fn interface(input: &str) -> IResult<&str, WirelessInterface> {
     let (input, (_, _, interface)) =
         tuple((take_until(INTERFACE), tag(INTERFACE), take_until("\n")))(input)?;
+    let (input, (_, _, connected_ssid)) =
+        tuple((take_until(SSID), tag(SSID), take_until("\n")))(input)?;
     Ok((
         input,
         WirelessInterface {
             name: interface.to_owned(),
+            connected_ssid: connected_ssid.to_owned(),
         },
     ))
 }
@@ -438,12 +454,20 @@ mod tests {
 
     #[test]
     fn valid_interface() {
-        let input = " Interface wlp64s0\n";
+        let input = "phy#0
+	Interface wlp64s0
+		ifindex 3
+		wdev 0x1
+		addr 9c:fc:e8:b8:fa:60
+		ssid whatever
+		type managed
+		";
 
         assert_eq!(
             parse_iw(input).unwrap().1,
             vec![WirelessInterface {
-                name: String::from("wlp64s0")
+                name: String::from("wlp64s0"),
+                connected_ssid: String::from("whatever")
             }]
         );
     }
@@ -471,7 +495,8 @@ mod tests {
         assert_eq!(
             parse_iw(input).unwrap().1,
             vec![WirelessInterface {
-                name: String::from("wlp64s0")
+                name: String::from("wlp64s0"),
+                connected_ssid: String::from("whatever"),
             }]
         );
     }
@@ -511,10 +536,12 @@ mod tests {
             parse_iw(input).unwrap().1,
             vec![
                 WirelessInterface {
-                    name: String::from("wlp64s0")
+                    name: String::from("wlp64s0"),
+                    connected_ssid: String::from("whatever"),
                 },
                 WirelessInterface {
-                    name: String::from("second")
+                    name: String::from("second"),
+                    connected_ssid: String::from("whatever"),
                 }
             ]
         );

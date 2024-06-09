@@ -20,7 +20,10 @@ cargo watch -c -w src -x run
 * [x] fetch wifis
     * [x]show in a list
 * [x] fetch wifis asynchronously (thread+channel) and show loading indicator
-* highlight connected wifi
+* [x] highlight connected wifi
+* [x] add refresh networks button
+* on interface change, refresh networks
+* correctly identify connected wifi (iw dev $interface info)
 * connect/disconnect to/from wifi
 * implement different schemes (WEP/WPA/WPA2)
 * implement "forget"
