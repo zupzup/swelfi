@@ -8,8 +8,11 @@ use nom::{
     sequence::{delimited, tuple},
     IResult,
 };
-use std::sync::mpsc::{channel, Sender};
 use std::{process::Command, sync::mpsc::Receiver};
+use std::{
+    sync::mpsc::{channel, Sender},
+    time::Duration,
+};
 
 mod fps;
 
@@ -68,14 +71,8 @@ struct WirelessInterface {
 }
 
 enum Event {
-    RefreshNetworks(egui::Context, String),
-    UpdateNetworks(Vec<WirelessNetwork>),
-}
-
-#[derive(Debug)]
-enum Switch {
-    On,
-    Off,
+    RefreshNetworks(egui::Context, String, Option<Duration>),
+    UpdateNetworks(Option<Vec<WirelessNetwork>>),
 }
 
 struct SwelfiApp {
@@ -104,8 +101,9 @@ impl SwelfiApp {
             .send(Event::RefreshNetworks(
                 context.egui_ctx.clone(),
                 app_state.selected_wlan_interface.clone(),
+                None,
             ))
-            .unwrap(); // TODO: handle error
+            .expect("can send on channel");
         log::info!("sent event...waiting");
         Self {
             app_state,
@@ -123,8 +121,10 @@ impl eframe::App for SwelfiApp {
             .on_new_frame(ctx.input(|i| i.time), frame.info().cpu_usage);
         while let Ok(event) = self.event_receiver.try_recv() {
             if let Event::UpdateNetworks(networks) = event {
-                self.app_state.selected_wlan_network = networks[0].id();
-                self.app_state.wlan_networks = Some(networks);
+                if let Some(ref networks) = networks {
+                    self.app_state.selected_wlan_network = networks[0].id();
+                }
+                self.app_state.wlan_networks = networks;
             }
         }
         egui::CentralPanel::default().show(ctx, |ui| {
@@ -157,7 +157,11 @@ impl eframe::App for SwelfiApp {
                                 });
                             ui.horizontal(|ui| {
                                 ui.add(egui::Label::new("On"));
-                                ui.add(toggle(&mut self.app_state.wlan_on));
+                                ui.add(toggle(
+                                    &mut self.app_state,
+                                    self.background_event_sender.clone(),
+                                    ctx.clone(),
+                                ));
                                 ui.add(egui::Label::new("Off"));
                             });
                             ui.end_row();
@@ -165,13 +169,13 @@ impl eframe::App for SwelfiApp {
                             ui.with_layout(egui::Layout::top_down(egui::Align::TOP), |ui| {
                                 ui.add(egui::Label::new("Networks"));
                                 if ui.button("refresh").clicked() {
-                                    self.app_state.wlan_networks = None;
                                     self.background_event_sender
                                         .send(Event::RefreshNetworks(
                                             ctx.clone(),
                                             self.app_state.selected_wlan_interface.clone(),
+                                            None,
                                         ))
-                                        .unwrap();
+                                        .expect("can send on channel");
                                 }
                             });
                             ui.vertical(|ui| {
@@ -210,12 +214,24 @@ fn main() -> Result<()> {
 
     std::thread::spawn(move || {
         while let Ok(event) = background_event_receiver.recv() {
-            if let Event::RefreshNetworks(ctx, selected_wlan_interface) = event {
-                let networks = scan_for_networks(&selected_wlan_interface).unwrap(); // TODO:
-                                                                                     // handle
-                                                                                     // errors
-                event_sender.send(Event::UpdateNetworks(networks)).unwrap();
-                ctx.request_repaint();
+            if let Event::RefreshNetworks(ctx, selected_wlan_interface, wait_time) = event {
+                event_sender
+                    .send(Event::UpdateNetworks(None))
+                    .expect("can send on channel");
+
+                if let Some(wait) = wait_time {
+                    std::thread::sleep(wait);
+                }
+
+                match scan_for_networks(&selected_wlan_interface) {
+                    Ok(networks) => {
+                        event_sender
+                            .send(Event::UpdateNetworks(Some(networks)))
+                            .expect("can send on channel");
+                        ctx.request_repaint();
+                    }
+                    Err(e) => log::error!("Error while scanning for networks: {}", e),
+                }
             }
         }
     });
@@ -224,7 +240,8 @@ fn main() -> Result<()> {
     // let wlan_interfaces: Vec<WirelessInterface> = vec![WirelessInterface {
     //     name: String::from("tstintf"),
     // }]
-    let selected_wlan_interface = wlan_interfaces[0].name.clone();
+    let selected_wlan_interface = wlan_interfaces[0].name.clone(); // TODO: handle case if there is
+                                                                   // no interface
 
     // let wlan_networks: Vec<WirelessNetwork> = vec![WirelessNetwork {
     //     essid: String::from("some network"),
@@ -262,22 +279,53 @@ fn main() -> Result<()> {
     .map_err(|e| anyhow!("eframe error: {}", e))
 }
 
-pub fn toggle(on: &mut bool) -> impl egui::Widget + '_ {
-    move |ui: &mut egui::Ui| toggle_ui(ui, on)
+fn toggle(
+    app_state: &mut AppState,
+    background_sender: Sender<Event>,
+    ctx: egui::Context,
+) -> impl egui::Widget + '_ {
+    move |ui: &mut egui::Ui| toggle_ui(ui, app_state, background_sender, ctx)
 }
 
 // custom toggle from egui examples
-fn toggle_ui(ui: &mut egui::Ui, on: &mut bool) -> egui::Response {
+fn toggle_ui(
+    ui: &mut egui::Ui,
+    app_state: &mut AppState,
+    background_sender: Sender<Event>,
+    ctx: egui::Context,
+) -> egui::Response {
     let desired_size = ui.spacing().interact_size.y * egui::vec2(2.0, 1.0);
     let (rect, mut response) = ui.allocate_exact_size(desired_size, egui::Sense::click());
     if response.clicked() {
-        *on = !*on;
+        // set new value
+        app_state.wlan_on = !app_state.wlan_on;
+
+        // if we set the interface to off, we clear the list
+        if !app_state.wlan_on {
+            app_state.wlan_networks = Some(vec![]);
+        }
         response.mark_changed();
+        match switch_wlan_interface(&app_state.selected_wlan_interface, app_state.wlan_on) {
+            Ok(_) => {
+                if app_state.wlan_on {
+                    background_sender
+                        .send(Event::RefreshNetworks(
+                            ctx,
+                            app_state.selected_wlan_interface.to_owned(),
+                            Some(Duration::from_millis(1000)), // wait for interface to come up
+                                                               // before scanning
+                        ))
+                        .expect("can send on channel");
+                }
+            }
+            Err(e) => log::error!("Error while switching wifi on, or off: {}", e),
+        }
     }
+    let on = app_state.wlan_on;
 
     if ui.is_rect_visible(rect) {
-        let how_on = ui.ctx().animate_bool(response.id, *on);
-        let visuals = ui.style().interact_selectable(&response, *on);
+        let how_on = ui.ctx().animate_bool(response.id, on);
+        let visuals = ui.style().interact_selectable(&response, on);
         let rect = rect.expand(visuals.expansion);
         let radius = 0.5 * rect.height();
         ui.painter()
@@ -308,14 +356,12 @@ fn scan_for_networks(interface: &str) -> Result<Vec<WirelessNetwork>> {
         .map_err(|_| anyhow!("output of 'iwlist' wasn't valid utf-8"))?
 }
 
-fn _switch_wlan_interface(interface: &str, switch: Switch) -> Result<()> {
-    let on_off = match switch {
-        Switch::On => "up",
-        Switch::Off => "down",
-    };
+fn switch_wlan_interface(interface: &str, on: bool) -> Result<()> {
+    let on_off = if on { "up" } else { "down" };
+    log::info!("switching wifi {} - on: {}", on_off, on);
 
-    Command::new("ip")
-        .args(["link", "set", interface, on_off])
+    Command::new("sudo")
+        .args(["ip", "link", "set", interface, on_off])
         .output()?;
     Ok(())
 }

@@ -22,16 +22,11 @@ cargo watch -c -w src -x run
 * [x] fetch wifis asynchronously (thread+channel) and show loading indicator
 * [x] highlight connected wifi
 * [x] add refresh networks button
-* on interface change, refresh networks
-* correctly identify connected wifi (iw dev $interface info)
-* connect/disconnect to/from wifi
+* [x] connect/disconnect to/from wifi
+* correctly identify currently connected wifi (iw dev $interface info)
+* implement disconnect from a network
+* implement connect to a network
 * implement different schemes (WEP/WPA/WPA2)
 * implement "forget"
-* implement auto-connect on startup (necessary?)
 * Custom style (check Settings from examples)
-* System Tray / Sway status bar (on click, open)
-    * block.click in i3status-rust on net block
-* Start with `sudo -E x`
-* Consider using libnl instead of iw/iwlist etc. ([libnl](http://www.infradead.org/~tgr/libnl/)
-    * check out neli (https://github.com/jbaublitz/neli) e.g. implemented in i3-status rs (https://github.com/greshake/i3status-rust/blob/master/src/netlink.rs)
-    * [libnl impl in python](https://github.com/Robpol86/libnl/blob/master/example_scan_access_points.py)
+
