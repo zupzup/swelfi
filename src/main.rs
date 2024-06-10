@@ -115,7 +115,6 @@ impl SwelfiApp {
 
 impl eframe::App for SwelfiApp {
     fn update(&mut self, ctx: &egui::Context, frame: &mut eframe::Frame) {
-        //ctx.request_repaint(); // continuous mode
         self.app_state
             .frame_history
             .on_new_frame(ctx.input(|i| i.time), frame.info().cpu_usage);
@@ -237,24 +236,14 @@ fn main() -> Result<()> {
     });
 
     let wlan_interfaces = iw()?;
-    // let wlan_interfaces: Vec<WirelessInterface> = vec![WirelessInterface {
-    //     name: String::from("tstintf"),
-    // }]
-    let selected_wlan_interface = wlan_interfaces[0].name.clone(); // TODO: handle case if there is
-                                                                   // no interface
+    if wlan_interfaces.is_empty() {
+        panic!("There is no wlan interface")
+    }
+    let selected_wlan_interface = wlan_interfaces[0].name.clone(); // this is safe, because we
+                                                                   // check for at least one
+                                                                   // interface above
 
-    // let wlan_networks: Vec<WirelessNetwork> = vec![WirelessNetwork {
-    //     essid: String::from("some network"),
-    //     security_type: SecurityType::WPA2,
-    //     frequency: 5.18,
-    //     quality: Quality {
-    //         value: 25,
-    //         limit: 70,
-    //     },
-    //     address: String::from("AE:E2:D3:CC:59:F7"),
-    // }];
-    // let mut selected_wlan_network = wlan_networks[0].name.clone();
-    let selected_wlan_network = String::new(); //wlan_networks[0].id();
+    let selected_wlan_network = String::new();
     let app_state = AppState {
         wlan_interfaces,
         selected_wlan_interface,
