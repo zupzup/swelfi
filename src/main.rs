@@ -209,13 +209,6 @@ impl eframe::App for SwelfiApp {
                                 }
                             });
                             ui.end_row();
-
-                            ui.label(
-                                self.app_state
-                                    .connected_wlan_network
-                                    .clone()
-                                    .unwrap_or(String::from("nothing connected")),
-                            );
                         });
                 });
         });
