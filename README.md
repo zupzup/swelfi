@@ -26,7 +26,6 @@ cargo watch -c -w src -x run
 * correctly identify currently connected wifi (iw dev $interface info)
 * implement disconnect from a network
 * implement connect to a network
-* implement different schemes (WEP/WPA/WPA2)
-* implement "forget"
+* implement WPA2
 * Custom style (check Settings from examples)
 
