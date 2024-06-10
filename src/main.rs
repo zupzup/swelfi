@@ -86,6 +86,7 @@ struct AppState {
     selected_wlan_interface: String,
     wlan_networks: Option<Vec<WirelessNetwork>>,
     selected_wlan_network: String,
+    connected_wlan_network: Option<String>,
     wlan_on: bool,
     frame_history: fps::FrameHistory,
 }
@@ -120,8 +121,15 @@ impl eframe::App for SwelfiApp {
             .on_new_frame(ctx.input(|i| i.time), frame.info().cpu_usage);
         while let Ok(event) = self.event_receiver.try_recv() {
             if let Event::UpdateNetworks(networks) = event {
+                if let Ok(connected_wlan_network) =
+                    get_connected_network_ssid(&self.app_state.selected_wlan_interface)
+                {
+                    self.app_state.connected_wlan_network = connected_wlan_network;
+                }
                 if let Some(ref networks) = networks {
-                    self.app_state.selected_wlan_network = networks[0].id();
+                    if !networks.is_empty() {
+                        self.app_state.selected_wlan_network = networks[0].id()
+                    };
                 }
                 self.app_state.wlan_networks = networks;
             }
@@ -179,12 +187,22 @@ impl eframe::App for SwelfiApp {
                             });
                             ui.vertical(|ui| {
                                 ui.set_width(250.0);
+                                let connected_wlan_network = &self.app_state.connected_wlan_network;
                                 if let Some(ref networks) = self.app_state.wlan_networks {
                                     networks.iter().for_each(|wn| {
+                                        let mut id = wn.id();
+                                        if let Some(connected_wlan_network) =
+                                            &connected_wlan_network
+                                        {
+                                            if id == *connected_wlan_network {
+                                                id = format!("{} - connected", id);
+                                                log::info!("connected! {}", id);
+                                            }
+                                        }
                                         ui.selectable_value(
                                             &mut self.app_state.selected_wlan_network,
-                                            wn.id(),
-                                            wn.id(),
+                                            id.clone(),
+                                            id,
                                         );
                                     });
                                 } else {
@@ -192,6 +210,13 @@ impl eframe::App for SwelfiApp {
                                 }
                             });
                             ui.end_row();
+
+                            ui.label(
+                                self.app_state
+                                    .connected_wlan_network
+                                    .clone()
+                                    .unwrap_or(String::from("nothing connected")),
+                            );
                         });
                 });
         });
@@ -244,11 +269,13 @@ fn main() -> Result<()> {
                                                                    // interface above
 
     let selected_wlan_network = String::new();
+    let connected_wlan_network = get_connected_network_ssid(&selected_wlan_interface)?;
     let app_state = AppState {
         wlan_interfaces,
         selected_wlan_interface,
         wlan_networks: None,
         selected_wlan_network,
+        connected_wlan_network,
         wlan_on: true,
         frame_history: fps::FrameHistory::default(),
     };
@@ -345,9 +372,31 @@ fn scan_for_networks(interface: &str) -> Result<Vec<WirelessNetwork>> {
         .map_err(|_| anyhow!("output of 'iwlist' wasn't valid utf-8"))?
 }
 
+fn get_connected_network_ssid(interface: &str) -> Result<Option<String>> {
+    let output = Command::new("iw")
+        .args(["dev", interface, "info"])
+        .output()?;
+
+    if !output.status.success() {
+        return Err(anyhow!(
+            "getting wireless interface info for {} using 'iw' failed",
+            interface
+        ));
+    }
+
+    std::str::from_utf8(&output.stdout)
+        .map(|out_str| {
+            Ok(Some(out_str.to_string()))
+            //TODO: parse iw output, if there is no ssid, return Ok(None), otherwise Ok(ssid)
+            // parse_iw_info(out_str)
+            //     .map(|(_, wlan_interfaces)| wlan_interfaces)
+            //     .map_err(|e| anyhow!("parsing 'iw' output failed: {}", e))
+        })
+        .map_err(|_| anyhow!("output of 'iw' wasn't valid utf-8"))?
+}
+
 fn switch_wlan_interface(interface: &str, on: bool) -> Result<()> {
     let on_off = if on { "up" } else { "down" };
-    log::info!("switching wifi {} - on: {}", on_off, on);
 
     Command::new("sudo")
         .args(["ip", "link", "set", interface, on_off])
