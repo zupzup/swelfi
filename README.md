@@ -23,7 +23,8 @@ cargo watch -c -w src -x run
 * [x] highlight connected wifi
 * [x] add refresh networks button
 * [x] connect/disconnect to/from wifi
-* correctly identify currently connected wifi (iw dev $interface info)
+* [x] correctly identify currently connected wifi (iw dev $interface info)
+* filter empty and duplicates from networks
 * implement disconnect from a network
 * implement connect to a network
 * implement WPA2

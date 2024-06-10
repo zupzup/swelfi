@@ -67,7 +67,7 @@ struct Quality {
 #[derive(Debug, Eq, PartialEq)]
 struct WirelessInterface {
     pub name: String,
-    pub connected_ssid: String,
+    pub connected_ssid: Option<String>,
 }
 
 enum Event {
@@ -194,9 +194,8 @@ impl eframe::App for SwelfiApp {
                                         if let Some(connected_wlan_network) =
                                             &connected_wlan_network
                                         {
-                                            if id == *connected_wlan_network {
+                                            if wn.essid == *connected_wlan_network {
                                                 id = format!("{} - connected", id);
-                                                log::info!("connected! {}", id);
                                             }
                                         }
                                         ui.selectable_value(
@@ -372,25 +371,23 @@ fn scan_for_networks(interface: &str) -> Result<Vec<WirelessNetwork>> {
         .map_err(|_| anyhow!("output of 'iwlist' wasn't valid utf-8"))?
 }
 
-fn get_connected_network_ssid(interface: &str) -> Result<Option<String>> {
+fn get_connected_network_ssid(selected_interface: &str) -> Result<Option<String>> {
     let output = Command::new("iw")
-        .args(["dev", interface, "info"])
+        .args(["dev", selected_interface, "info"])
         .output()?;
 
     if !output.status.success() {
         return Err(anyhow!(
             "getting wireless interface info for {} using 'iw' failed",
-            interface
+            selected_interface
         ));
     }
 
     std::str::from_utf8(&output.stdout)
         .map(|out_str| {
-            Ok(Some(out_str.to_string()))
-            //TODO: parse iw output, if there is no ssid, return Ok(None), otherwise Ok(ssid)
-            // parse_iw_info(out_str)
-            //     .map(|(_, wlan_interfaces)| wlan_interfaces)
-            //     .map_err(|e| anyhow!("parsing 'iw' output failed: {}", e))
+            interface(out_str)
+                .map(|(_, wlan_interface)| wlan_interface.connected_ssid)
+                .map_err(|e| anyhow!("parsing 'iw' output failed: {}", e))
         })
         .map_err(|_| anyhow!("output of 'iw' wasn't valid utf-8"))?
 }
@@ -522,12 +519,12 @@ fn interface(input: &str) -> IResult<&str, WirelessInterface> {
     let (input, (_, _, interface)) =
         tuple((take_until(INTERFACE), tag(INTERFACE), take_until("\n")))(input)?;
     let (input, (_, _, connected_ssid)) =
-        tuple((take_until(SSID), tag(SSID), take_until("\n")))(input)?;
+        tuple((take_until(SSID), tag(SSID), take_until("\n")))(input)?; // TODO: make optional
     Ok((
         input,
         WirelessInterface {
             name: interface.to_owned(),
-            connected_ssid: connected_ssid.to_owned(),
+            connected_ssid: Some(connected_ssid.to_owned()),
         },
     ))
 }
@@ -551,10 +548,11 @@ mod tests {
             parse_iw(input).unwrap().1,
             vec![WirelessInterface {
                 name: String::from("wlp64s0"),
-                connected_ssid: String::from("whatever")
+                connected_ssid: Some(String::from("whatever"))
             }]
         );
     }
+    // TODO: test without ssid
 
     #[test]
     fn basic_interface() {
@@ -580,7 +578,7 @@ mod tests {
             parse_iw(input).unwrap().1,
             vec![WirelessInterface {
                 name: String::from("wlp64s0"),
-                connected_ssid: String::from("whatever"),
+                connected_ssid: Some(String::from("whatever")),
             }]
         );
     }
@@ -621,11 +619,11 @@ mod tests {
             vec![
                 WirelessInterface {
                     name: String::from("wlp64s0"),
-                    connected_ssid: String::from("whatever"),
+                    connected_ssid: Some(String::from("whatever")),
                 },
                 WirelessInterface {
                     name: String::from("second"),
-                    connected_ssid: String::from("whatever"),
+                    connected_ssid: Some(String::from("whatever")),
                 }
             ]
         );
