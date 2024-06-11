@@ -1,32 +1,11 @@
 # swelfi
 
-## Dev
+Simple GUI for showing available WIFI networks, as well as which one is connected and the possibility to enable/disable wifi.
+This was mostly a toy project to get to know egui/eframe and immediate mode GUI development a little better.
+
+## Run
 
 ```bash
-cargo watch -c -w src -x run
+RUST_LOG=info cargo run
 ```
-
-## TODOs
-
-* [x] Draw UI sketch
-* [x] Use WGPU backend
-* [x] Build UI outline with dummy data
-* Fetch wireless interfaces (https://www.baeldung.com/linux/connect-network-cli)
-    * [x] auto-set default
-    * [x] make selectable
-    * [x] iwconfig parsing
-* [x] implement enable/disable wifi
-* [x] Create watch-workflow
-* [x] fetch wifis
-    * [x]show in a list
-* [x] fetch wifis asynchronously (thread+channel) and show loading indicator
-* [x] highlight connected wifi
-* [x] add refresh networks button
-* [x] connect/disconnect to/from wifi
-* [x] correctly identify currently connected wifi (iw dev $interface info)
-* filter empty and duplicates from networks
-* implement disconnect from a network
-* implement connect to a network
-* implement WPA2
-* Custom style (check Settings from examples)
 

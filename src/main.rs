@@ -358,7 +358,15 @@ fn scan_for_networks(interface: &str) -> Result<Vec<WirelessNetwork>> {
     std::str::from_utf8(&output.stdout)
         .map(|out_str| {
             parse_nw(out_str)
-                .map(|(_, wlan_networks)| wlan_networks)
+                .map(|(_, mut wlan_networks)| {
+                    wlan_networks.sort_by(|wn1, wn2| wn1.essid.cmp(&wn2.essid));
+                    wlan_networks.dedup_by(|wn1, wn2| wn1.essid.eq_ignore_ascii_case(&wn2.essid));
+                    wlan_networks.sort_by(|wn1, wn2| wn2.quality.value.cmp(&wn1.quality.value));
+                    wlan_networks
+                        .into_iter()
+                        .filter(|wn| !wn.essid.is_empty())
+                        .collect()
+                })
                 .map_err(|e| anyhow!("parsing 'iwlist' output failed: {}", e))
         })
         .map_err(|_| anyhow!("output of 'iwlist' wasn't valid utf-8"))?
