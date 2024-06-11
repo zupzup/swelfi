@@ -3,6 +3,7 @@ use eframe::egui;
 use nom::{
     bytes::complete::{tag, take_until, take_while},
     character::complete::{digit1, not_line_ending},
+    combinator::opt,
     multi::many0,
     number::complete::double,
     sequence::{delimited, tuple},
@@ -519,13 +520,17 @@ fn parse_iw(input: &str) -> IResult<&str, Vec<WirelessInterface>> {
 fn interface(input: &str) -> IResult<&str, WirelessInterface> {
     let (input, (_, _, interface)) =
         tuple((take_until(INTERFACE), tag(INTERFACE), take_until("\n")))(input)?;
-    let (input, (_, _, connected_ssid)) =
-        tuple((take_until(SSID), tag(SSID), take_until("\n")))(input)?; // TODO: make optional
+    let (input, optional_connected_ssid) =
+        opt(tuple((take_until(SSID), tag(SSID), take_until("\n"))))(input)?;
+    let mut connected_ssid = None;
+    if let Some((_, _, ssid)) = optional_connected_ssid {
+        connected_ssid = Some(ssid);
+    }
     Ok((
         input,
         WirelessInterface {
             name: interface.to_owned(),
-            connected_ssid: Some(connected_ssid.to_owned()),
+            connected_ssid: connected_ssid.map(|cs| cs.to_owned()),
         },
     ))
 }
@@ -553,7 +558,6 @@ mod tests {
             }]
         );
     }
-    // TODO: test without ssid
 
     #[test]
     fn basic_interface() {
